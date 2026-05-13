@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>ViciOne.Suite.DataPort</RootNamespace>
+    <AssemblyName>ViciOne.Suite.DataPort.Mqtt</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+      <PackageReference Include="MQTTnet.Extensions" />
+      <PackageReference Include="ViciOne.Suite.DataPort" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Mqtt.yaml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

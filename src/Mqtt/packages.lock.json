@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0": {
+      "MQTTnet.Extensions": {
+        "type": "Direct",
+        "requested": "[0.21.0, )",
+        "resolved": "0.21.0",
+        "contentHash": "XpuIVR0sTqtndsgwhFNJAIalViJRqGXpgu/bABPTgy2+OAAYi/WLMjAG29m/PhLXwCAlZ/GP2KyvReUt1mX5/A==",
+        "dependencies": {
+          "MQTTnet": "4.3.7.1207",
+          "Microsoft.Extensions.Logging.Abstractions": "9.0.3"
+        }
+      },
+      "ViciOne.Suite.DataPort": {
+        "type": "Direct",
+        "requested": "[0.32.0, )",
+        "resolved": "0.32.0",
+        "contentHash": "xFJKSmxkPwlXPQcdouNDdbmaJTdFZkVjZmSn2kHVP4YQFUe3n4p7DZRkxUPsyk7ls0jf7G9RHMXqxqxvsKS71w==",
+        "dependencies": {
+          "ViciOne.ManagedEngine.Contracts": "1.0.0"
+        }
+      },
+      "Microsoft.Extensions.DependencyInjection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.3",
+        "contentHash": "bwGMrRcAMWx2s/RDgja97p27rxSz2pEQW0+rX5cWAUWVETVJ/eyxGfjAl8vuG5a+lckWmPIE+vcuaZNVB5YDdw=="
+      },
+      "Microsoft.Extensions.Logging.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.3",
+        "contentHash": "lxl0WLk7ROgBFAsjcOYjQ8/DVK+VMszxGBzUhgtQmAsTNldLL5pk9NG/cWTsXHq0lUhUEAtZkEE7jOGOA8bGKQ==",
+        "dependencies": {
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.3"
+        }
+      },
+      "MQTTnet": {
+        "type": "Transitive",
+        "resolved": "4.3.7.1207",
+        "contentHash": "ah7aHXoedWp5m5a4zy2u4phOEVj0QFYzOb5tFKQeV8RRBrxp+1QREF4ymZuG8D+hzB2dhtrrG81WxTFv0PzOeQ=="
+      },
+      "ViciOne.ManagedEngine.Contracts": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "ZgFz7ZsM/2eZVAQIHoZU4P2YOJChGIgkm2MY6qT2wZkBpAgY/Gh09nvfMa8jYXfFdQJiJebNstpfnoFFn71deA==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "10.0.3",
+          "ViciOne.ManagedEngine.Serialization": "1.0.0"
+        }
+      },
+      "ViciOne.ManagedEngine.Serialization": {
+        "type": "Transitive",
+        "resolved": "1.0.0",
+        "contentHash": "8ZwPSnqDn3lZODdhK2/7Qe54yNEWt3XIxmVDAd5IK86+OjsU3gSCcZdMOo1Zq2aqWja4KtlSzgvj3hQfMqiisQ=="
+      }
+    },
+    "net10.0/linux-arm64": {},
+    "net10.0/linux-x64": {},
+    "net10.0/win-x64": {}
+  }
+}
