@@ -117,7 +117,7 @@ Push binaries:
   extends: .dotnet-release-raw-rids
   stage: publish
   rules:
-    - <<: *rule_tag
+    - <<: *rule_tag_manual
       variables:
         SERVER: 'https://ifm.jfrog.io/artifactory/vicione-suite'
     - *rule_default_branch_manual
