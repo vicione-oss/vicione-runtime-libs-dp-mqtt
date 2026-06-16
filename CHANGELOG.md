@@ -1,5 +1,11 @@
 # Changelog
 
+## Next
+
+### Chnaged
+
+- Update `.yaml` files format to `2.0.0` (`ViciOne.TreeBuilder`)
+
 ## 1.0.0 - 2026-05-18
 
 No changes
