@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Loader;
@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using MQTTnet.Client;
 using MQTTnet.Extensions;
 using MQTTnet.Protocol;
 using ViciOne.ManagedEngine.ExternalCommunication;
@@ -45,7 +44,7 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
         (_transferredNodeJsonNodes, _addressNodes) = InitializeUnspecificTree.InitializeIncoming(communication.Nodes, GenerateTopic);
     }
 
-    private Task HandleIncomingValueAsync(MqttApplicationMessageReceivedEventArgs eventArgs)
+    private Task HandleIncomingValueAsync(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs)
     {
         try
         {

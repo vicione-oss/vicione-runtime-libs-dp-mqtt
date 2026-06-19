@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -75,7 +76,7 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
                 .WithUserProperty(MqttUserProperties.Timestamp, timestamp)
                 .WithUserProperty(MqttUserProperties.Validity, validity);
             if (typeInfo is not null)
-                builder.WithUserProperty(MqttUserProperties.Type, typeInfo);
+                builder.WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeInfo));
         }
         return builder;
     }

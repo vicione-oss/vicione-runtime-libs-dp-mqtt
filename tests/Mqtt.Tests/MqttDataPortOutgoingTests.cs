@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.Loader;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -106,9 +107,9 @@ public class MqttDataPortOutgoing_
             {
                 m.Topic.Should().Be("group/value");
                 JsonSerializer.Deserialize<int>(m.ConvertPayloadToString()).Should().Be(112);
-                m.UserProperties.FindRequired(MqttUserProperties.Type).Value.Should().Be(typeof(int).AssemblyQualifiedName);
-                DateTime.Parse(m.UserProperties.FindRequired(MqttUserProperties.Timestamp).Value, CultureInfo.InvariantCulture).Should().Be(timestamp);
-                m.UserProperties.FindRequired(MqttUserProperties.Validity).Value.Should().Be("100");
+                Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Type).ValueBuffer.Span).Should().Be(typeof(int).AssemblyQualifiedName);
+                DateTime.Parse(Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Timestamp).ValueBuffer.Span), CultureInfo.InvariantCulture).Should().Be(timestamp);
+                Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Validity).ValueBuffer.Span).Should().Be("100");
             });
     }
 
@@ -195,7 +196,7 @@ public class MqttDataPortOutgoing_
 
         var message = messages.Should().ContainSingle().Which;
         message.Topic.Should().Be("group");
-        message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Type).Which.Value.Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$""""
+        Encoding.UTF8.GetString(message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Type).Which.ValueBuffer.Span).Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$""""
         {
             "value1": "{{typeof(int).AssemblyQualifiedName}}",
             "subgroup": {
@@ -369,9 +370,9 @@ public class MqttDataPortOutgoing_
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
         messages.Should().ContainSingle().Which.UserProperties.Should().SatisfyRespectively(
-            ts => FluentActions.Invoking(() => DateTime.Parse(ts.Value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)).Should().NotThrow().Which.Should().Be(timestamp),
-            v => FluentActions.Invoking(() => int.Parse(v.Value, CultureInfo.InvariantCulture)).Should().NotThrow().Which.Should().Be(100),
-            t => FluentActions.Invoking(() => Type.GetType(t.Value)).Should().NotThrow().Which.Should().Be<int>());
+            ts => FluentActions.Invoking(() => DateTime.Parse(Encoding.UTF8.GetString(ts.ValueBuffer.Span), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)).Should().NotThrow().Which.Should().Be(timestamp),
+            v => FluentActions.Invoking(() => int.Parse(Encoding.UTF8.GetString(v.ValueBuffer.Span), CultureInfo.InvariantCulture)).Should().NotThrow().Which.Should().Be(100),
+            t => FluentActions.Invoking(() => Type.GetType(Encoding.UTF8.GetString(t.ValueBuffer.Span))).Should().NotThrow().Which.Should().Be<int>());
     }
 
     [Fact]
@@ -574,7 +575,7 @@ public class MqttDataPortOutgoing_
 
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
-        var json = messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.Value;
+        var json = Encoding.UTF8.GetString(messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.ValueBuffer.Span);
         JsonNode.Parse(json)!["myValue"]!.GetValue<string>().Should().Be(typeof(JsonObject).AssemblyQualifiedName!);
     }
 }

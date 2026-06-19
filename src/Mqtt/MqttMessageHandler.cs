@@ -1,9 +1,9 @@
-﻿using System;
+using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using MQTTnet.Client;
 using MQTTnet.Extensions;
 using ViciOne.ManagedEngine.ExternalCommunication;
 
@@ -11,7 +11,7 @@ namespace ViciOne.Suite.DataPort;
 
 internal static class MqttMessageHandler
 {
-    internal static List<ExternalValue> HandleMessage(MqttApplicationMessageReceivedEventArgs eventArgs,
+    internal static List<ExternalValue> HandleMessage(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs,
         Dictionary<Guid, IReadOnlyCollection<INode[]>> transferredNodeJsonNodes,
         Dictionary<string, IReadOnlyCollection<INode>> addressNodes, TimeProvider timeProvider, JsonSerializerOptions jsonOptions, Serializer defaultSerializer)
     {
@@ -34,13 +34,13 @@ internal static class MqttMessageHandler
             }
             else
             {
-                ProcessValue(transferredNode, serializer, eventArgs.ApplicationMessage.PayloadSegment.Array, typeProperty?.GetAsType() ?? transferredNode.ValueType, transferredNode.AffectedChannels);
+                ProcessValue(transferredNode, serializer, eventArgs.ApplicationMessage.Payload, typeProperty?.GetAsType() ?? transferredNode.ValueType, transferredNode.AffectedChannels);
             }
         }
 
         return values;
 
-        void ProcessValue(INode transferredNode, Serializer serializer, byte[]? data, Type? nodeType, IReadOnlyCollection<string> affectedChannels)
+        void ProcessValue(INode transferredNode, Serializer serializer, ReadOnlySequence<byte> data, Type? nodeType, IReadOnlyCollection<string> affectedChannels)
         {
             if (nodeType is null)
                 throw new InvalidOperationException("Type of value not found.");

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Buffers;
 using System.ComponentModel;
 using System.Globalization;
 using System.Net.Mime;
@@ -29,6 +30,25 @@ internal static class SerializerExtensions
             Serializer.PlainText => TypeDescriptor.GetConverter(type).ConvertFromInvariantString(Encoding.UTF8.GetString(data)),
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
+    }
+
+    internal static object? Deserialize(this Serializer serializer, ReadOnlySequence<byte> data, Type type, JsonSerializerOptions options)
+    {
+        if (data.Length == 0)
+            return null;
+
+        return serializer switch
+        {
+            Serializer.Json => ParseJsonNode(data)?.Deserialize(type, options),
+            Serializer.PlainText => TypeDescriptor.GetConverter(type).ConvertFromInvariantString(Encoding.UTF8.GetString(data)),
+            _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
+        };
+
+        static JsonNode? ParseJsonNode(ReadOnlySequence<byte> data)
+        {
+            var reader = new Utf8JsonReader(data);
+            return JsonNode.Parse(ref reader);
+        }
     }
 
     internal static string ToContentType(this Serializer serializer)

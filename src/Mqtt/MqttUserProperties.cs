@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Globalization;
+using System.Text;
 using System.Text.Json.Nodes;
 using MQTTnet.Packets;
 
@@ -13,16 +14,16 @@ internal static class MqttUserProperties
     internal const string Type = "Type";
 
     internal static DateTimeOffset GetDateTimeOffset(this MqttUserProperty userProperty)
-        => DateTimeOffset.ParseExact(userProperty.Value, "O", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
+        => DateTimeOffset.ParseExact(Encoding.UTF8.GetString(userProperty.ValueBuffer.Span), "O", CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal);
 
     internal static Type GetAsType(this MqttUserProperty property)
-        => property.Value.ToType();
+        => Encoding.UTF8.GetString(property.ValueBuffer.Span).ToType();
 
     internal static JsonObject? GetAsJsonObject(this MqttUserProperty property)
     {
         try
         {
-            return JsonNode.Parse(property.Value)?.AsObject();
+            return JsonNode.Parse(Encoding.UTF8.GetString(property.ValueBuffer.Span))?.AsObject();
         }
         catch
         {

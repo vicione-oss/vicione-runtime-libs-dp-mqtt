@@ -8,7 +8,7 @@ namespace ViciOne.Suite.DataPort;
 internal static class MqttApplicationMessageExtensions
 {
     internal static JsonNode? GetPayloadAsJsonNode(this MqttApplicationMessage message)
-        => (message.PayloadSegment.Array?.Length ?? 0) != 0 ? JsonNode.Parse(message.PayloadSegment.Array) : null;
+        => MqttPayloadHelper.GetMessagePayloadAsJsonNode(message);
 
     internal static DateTimeOffset GetTimestamp(this MqttApplicationMessage message, TimeProvider? timeProvider = null)
     {
