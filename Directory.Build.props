@@ -26,6 +26,7 @@
     <DisableImplicitLibraryPacksFolder>true</DisableImplicitLibraryPacksFolder>
   </PropertyGroup>
 
+  <!-- NuGet packages publish information -->
   <PropertyGroup>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://gitlab.com/vicione-oss/vicione/runtime-libs/dp-mqtt</PackageProjectUrl>
