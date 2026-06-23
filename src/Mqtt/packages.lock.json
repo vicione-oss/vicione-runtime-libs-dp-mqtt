@@ -4,11 +4,11 @@
     "net10.0": {
       "MQTTnet.Extensions": {
         "type": "Direct",
-        "requested": "[0.21.0, )",
-        "resolved": "0.21.0",
-        "contentHash": "XpuIVR0sTqtndsgwhFNJAIalViJRqGXpgu/bABPTgy2+OAAYi/WLMjAG29m/PhLXwCAlZ/GP2KyvReUt1mX5/A==",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "CKYcuYOhnd1G1VjhTpjoBQma7KHrCkzy+jyBPDrFmsC1zf3Hi0Mj97xE7HuZhHcHeGZKbGXc6uScceniBYNKEQ==",
         "dependencies": {
-          "MQTTnet": "4.3.7.1207",
+          "MQTTnet": "5.1.0.1559",
           "Microsoft.Extensions.Logging.Abstractions": "9.0.3"
         }
       },
@@ -36,8 +36,8 @@
       },
       "MQTTnet": {
         "type": "Transitive",
-        "resolved": "4.3.7.1207",
-        "contentHash": "ah7aHXoedWp5m5a4zy2u4phOEVj0QFYzOb5tFKQeV8RRBrxp+1QREF4ymZuG8D+hzB2dhtrrG81WxTFv0PzOeQ=="
+        "resolved": "5.1.0.1559",
+        "contentHash": "9mkk0H+76CToIzp9ru5Uj5BuC3P5hQdkhvXM+CLmmTDdZWqajjICCHuUMbDd1yVBt9BWL77Rvzt0A+/PA4WMCA=="
       },
       "ViciOne.ManagedEngine.Contracts": {
         "type": "Transitive",

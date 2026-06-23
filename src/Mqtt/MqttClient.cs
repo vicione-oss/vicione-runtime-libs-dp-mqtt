@@ -1,9 +1,8 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Extensions;
 using MQTTnet.Extensions.ManagedClient;
 using MQTTnet.Internal;
@@ -19,7 +18,7 @@ internal sealed class MqttClient(IManagedMqttClient managedMqttClient, Communica
 
     [SuppressMessage("Reliability", "CA2000:Objekte verwerfen, bevor Bereich verloren geht")]
     internal static MqttClient Create(CommunicationInfo communicationInfo, ILoggerFactory loggerFactory)
-        => new(new MqttFactory().CreateManagedMqttClient(new MqttLogger(loggerFactory.CreateLogger<IManagedMqttClient>())), communicationInfo);
+        => new(new MqttClientFactory().CreateManagedMqttClient(new MqttLogger(loggerFactory.CreateLogger<IManagedMqttClient>())), communicationInfo);
 
     public event Func<MqttApplicationMessageReceivedEventArgs, Task>? MessageReceived
     {

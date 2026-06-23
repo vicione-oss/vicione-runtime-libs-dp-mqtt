@@ -1,14 +1,14 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Loader;
+using System.Text;
 using System.Threading.Tasks;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using MQTTnet;
-using MQTTnet.Client;
 using MQTTnet.Extensions;
 using MQTTnet.Protocol;
 using NSubstitute;
@@ -137,12 +137,12 @@ public class MqttDataPortIncoming_
                 "value2": 25
             }
             """)
-            .WithUserProperty(MqttUserProperties.Type, $$"""
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes($$"""
             {
                 "value1":"{{typeof(int).AssemblyQualifiedName}}",
                 "value2": "{{typeof(int).AssemblyQualifiedName}}"
             }
-            """)
+            """))
             .Build();
 
         client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
@@ -257,11 +257,11 @@ public class MqttDataPortIncoming_
                 "value1": 23
             }
             """)
-            .WithUserProperty(MqttUserProperties.Type, $$"""
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes($$"""
             {
                 "value1":"{{typeof(int).AssemblyQualifiedName}}"
             }
-            """)
+            """))
             .Build();
 
         client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
@@ -352,9 +352,9 @@ public class MqttDataPortIncoming_
                 new[] { nodeWithoutType },
                 new MqttApplicationMessageBuilder()
                     .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, typeof(int).AssemblyQualifiedName)
-                    .WithUserProperty(MqttUserProperties.Timestamp, new DateTime(2023, 5, 1, 0, 0, 0, DateTimeKind.Utc))
-                    .WithPayload("23")
+                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
+                    .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(new DateTime(2023, 5, 1, 0, 0, 0, DateTimeKind.Utc).ToString("O")))
+                    .WithPayload(Encoding.UTF8.GetBytes("23"))
                     .Build(),
                 m =>
                 {
@@ -368,8 +368,8 @@ public class MqttDataPortIncoming_
                 new[] { nodeWithoutType },
                 new MqttApplicationMessageBuilder()
                     .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, typeof(int).AssemblyQualifiedName)
-                    .WithUserProperty(MqttUserProperties.Validity, 112)
+                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
+                    .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("112"))
                     .Build(),
                 m => m.Should().ContainSingle().Which.Validity.Should().Be(112)
             },
@@ -377,7 +377,7 @@ public class MqttDataPortIncoming_
                 new[] { nodeWithoutType },
                 new MqttApplicationMessageBuilder()
                     .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, typeof(int).AssemblyQualifiedName)
+                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
                     .Build(),
                 m =>
                 {

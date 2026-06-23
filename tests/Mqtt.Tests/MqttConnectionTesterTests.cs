@@ -1,6 +1,5 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using AwesomeAssertions;
-using MQTTnet;
 using MQTTnet.Server;
 using Xunit;
 
@@ -11,7 +10,7 @@ public class MqttConnectionTester_TestConnectionAsync
     [Fact]
     public async Task Can_connect_to_server()
     {
-        var mqttServer = new MqttFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().Build());
+        var mqttServer = new MqttServerFactory().CreateMqttServer(new MqttServerOptionsBuilder().WithDefaultEndpoint().Build());
         await mqttServer.StartAsync();
 
         MqttDataPortCommunication communication = new()

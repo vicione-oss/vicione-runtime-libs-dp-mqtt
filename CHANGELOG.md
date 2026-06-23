@@ -2,9 +2,10 @@
 
 ## Next
 
-### Chnaged
+### Changed
 
 - Update `.yaml` files format to `2.0.0` (`ViciOne.TreeBuilder`)
+- Update `MQTTnet.Extensions` to `1.0.0`
 
 ## 1.0.0 - 2026-05-18
 
