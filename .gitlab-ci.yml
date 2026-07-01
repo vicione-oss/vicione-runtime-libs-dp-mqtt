@@ -50,24 +50,63 @@
   - *rule_mr
   - *rule_web
 
+.rules_only_tags: &rules_only_tags_manual
+  - *rule_tag_manual
+
+.rules_not_tags: &rules_not_tags_manual
+  - *rule_default_branch_manual
+  - *rule_mr_manual
+  - *rule_web_manual
+
+.exec_matrix: &exec_matrix
+  - OS: linux
+    ARCH: [x64, arm64]
+  - OS: win
+    ARCH: [x64]
+
+.update_nuget_source_ro: &update_nuget_source_ro
+  - dotnet nuget update source JFrogNuGetProxy --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
+  - dotnet nuget update source JFrogViciOne --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
+
+.update_nuget_source_rw: &update_nuget_source_rw
+  - dotnet nuget update source JFrogViciOne --configfile NuGet.Config -u $NuGet_User_RW_JFrog -p $NuGet_PW_RW_JFrog --store-password-in-clear-text
+
 default:
   image: mcr.microsoft.com/dotnet/sdk:10.0
 
+variables:
+  PROJECT_FULLNAME: "ViciOne.Suite.DataPort.Mqtt"
+
 stages:
+  - metadata
   - build
   - test
   - pack
   - publish
+  - promote
 
 include:
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/version/version-calc@v1.1.1
     inputs:
       rules: *rules_always
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/module-packaging/runtime-identifier@v0.2.0
+    inputs:
+      project: "src/Mqtt/Mqtt.csproj"
+      rules: *rules_always
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/module-packaging/metadata@v0.2.0
+    inputs:
+      name: "Project Metadata"
+      project: "src/Mqtt/Mqtt.csproj"
+      module_version: "${Version}"
+      metadata_json: "src/Mqtt/metadata.json"
+      min_core_version_file: "VERSION_CORE"
+      min_core_version_property: "MinCoreVersion"
+      rules: *rules_always
+      stage: metadata
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-restore@2
     inputs:
       before_script:
-        - dotnet nuget update source JFrogNuGetProxy --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
-        - dotnet nuget update source JFrogViciOne --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
+        - *update_nuget_source_ro
       rules: *rules_always
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-build@2
     inputs:
@@ -78,13 +117,14 @@ include:
       stage: test
       rules: *rules_not_tags
       before_script:
-        - dotnet nuget update source JFrogNuGetProxy --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
+        - *update_nuget_source_ro
       build: true
       test: true
       test_coverage: true
       test_filter: "/[(Category!=System)&(Category!=Integration)]"
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-pack@2
     inputs:
+      stage: pack
       rules:
         - *rule_tag
         - *rule_default_branch_manual
@@ -92,43 +132,71 @@ include:
         - *rule_web_manual
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-nuget-push@2
     inputs:
+      stage: publish
       rules: *rules_manual
       before_script:
-        - dotnet nuget update source JFrogViciOne --configfile NuGet.Config -u $NuGet_User_RW_JFrog -p $NuGet_PW_RW_JFrog --store-password-in-clear-text
-      source: 'JFrogViciOne'
-  - project: 'vicione-oss/tooling/templates'
-    file: '/CI-Templates/v2/dotnet.yml'
-  - project: 'vicione-oss/tooling/ci-templates'
-    file: '/project/v1/dotnet.yml'
-
-Push MQTT binaries:
-  extends: .dotnet-release-raw-rids
-  stage: publish
-  rules:
-    - <<: *rule_tag_manual
-      variables:
-        SERVER: 'https://ifm.jfrog.io/artifactory/vicione-suite-staging'
-    - *rule_default_branch_manual
-    - *rule_mr_manual
-    - *rule_web_manual
-  variables:
-    SERVER: 'https://ifm.jfrog.io/artifactory/vicione-suite-dev'
-    USER: ${Raw_User_RW_JFrog}
-    PASSWORD: ${Raw_PW_RW_JFrog}
-    PROJECT: 'src/Mqtt/Mqtt.csproj'
-    DST_DIRECTORY: 'fbs/ViciOne.Suite.DataPort.Mqtt'
-    METADATA_FILE: 'src/Mqtt/metadata.json'
-    METADATA_VERSION_FILE: 'VERSION'
-    METADATA_MIN_VERSION_FILE: 'VERSION_CORE'
-    METADATA_MIN_VERSION_KEY: 'MinCoreVersion'
-  before_script:
-    - dotnet nuget update source JFrogNuGetProxy --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
-    - dotnet nuget update source JFrogViciOne --configfile NuGet.Config -u $NuGet_User_JFrog -p $NuGet_PW_JFrog --store-password-in-clear-text
-  after_script:
-    - !reference [ .push-metadata ]
-
-Publish binaries:
-  extends: .dotnet-release-public
-  stage: publish
-  needs:
-    - Push MQTT binaries
+        - *update_nuget_source_rw
+      source: "JFrogViciOne"
+  # Publish RIDs
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-publish@2
+    inputs:
+      stage: pack
+      rules: *rules_manual
+      project: "src/Mqtt/Mqtt.csproj"
+      output_directory: "artifacts/${OS}-${ARCH}"
+      self_contained: "true"
+      before_script:
+        - *update_nuget_source_ro
+        - dotnet restore
+      execution_matrix: *exec_matrix
+    # Package binaries
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/module-packaging/package-module@v0.2.0
+    inputs:
+      stage: pack
+      name: "Package Binaries"
+      rules: *rules_always
+      publish_job: "dotnet Publish"
+      metadata_job: "Project Metadata"
+      build_dir: "artifacts"
+      before_script:
+        - apt update
+        - apt install jq zip -y
+  # Prerelease metadata to dev repository ###
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v1.0.0
+    inputs:
+      name: "Push Binaries: JFrog DEV"
+      stage: publish
+      rules: *rules_not_tags_manual
+      repository: "vicione-suite-dev"
+      upload_path: "fbs/${PROJECT_FULLNAME}"
+      needs:
+        - "Project Metadata"
+        - "Package Binaries"
+      artifacts:
+        - "artifacts/**/*json"
+        - "artifacts/**/*zip"
+  # Release metadata (on tag) ###
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v1.0.0
+    inputs:
+      name: "Push Binaries: JFrog STAGING"
+      stage: publish
+      rules: *rules_only_tags_manual
+      repository: "vicione-suite-staging"
+      upload_path: "fbs/${PROJECT_FULLNAME}"
+      needs:
+        - "Project Metadata"
+        - "Package Binaries"
+      artifacts:
+        - "artifacts/**/*json"
+        - "artifacts/**/*zip"
+  # Promote staging to production (on tag) ###
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/promote@v1.0.0
+    inputs:
+      name: "Promote Binaries: JFrog"
+      stage: promote
+      rules: *rules_only_tags_manual
+      source_repository: "vicione-suite-staging"
+      destination_repository: "vicione-suite"
+      artifacts:
+        - "artifacts/**/*json"
+        - "artifacts/**/*zip"
