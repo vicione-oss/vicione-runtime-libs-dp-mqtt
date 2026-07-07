@@ -86,7 +86,7 @@ Nodes:
     TransferModes          : [ None, OnChange, Periodic  ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     ChildNodes             :
       - Id                 : Folder
@@ -109,7 +109,7 @@ Nodes:
     DataTypes              : [ Bool ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
@@ -127,7 +127,7 @@ Nodes:
     DataTypes              : [ Int32, Int64, Int16, Int8, UInt32, UInt64, UInt16, UInt8 ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
@@ -145,7 +145,7 @@ Nodes:
     DataTypes              : [ Float64, Float32 ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
@@ -163,7 +163,7 @@ Nodes:
     DataTypes              : [ DateTime ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
@@ -181,7 +181,7 @@ Nodes:
     DataTypes              : [ String ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
@@ -199,7 +199,7 @@ Nodes:
     DataTypes              : [ Binary ]
     NameValidations        :
       - Type               : Regex
-        Pattern            : '[^\x00-\x1f\x7f#+]+'
+        Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
     PropertyCategories     :
       - Id                 : Other
