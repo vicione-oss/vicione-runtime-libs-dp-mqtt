@@ -37,6 +37,8 @@
 - Honour the cancellation of a send cycle: publish nothing further and stop waiting for the broker
 - Redact the credentials and the client certificate in the text representation of the MQTT
   communication, which exposed them to every log sink
+- Log the warnings about insecure connection settings for an unpooled MQTT client too, where they
+  were dropped
 
 ## 1.0.0 - 2026-05-18
 
