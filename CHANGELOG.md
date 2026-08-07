@@ -32,6 +32,8 @@
 - Keep the instant of a received `Timestamp`, which moved by the host's UTC offset when republished
 - Read a received `Timestamp` without a time zone as UTC instead of the local time of the host
 - Honour the cancellation of a send cycle: publish nothing further and stop waiting for the broker
+- Redact the credentials and the client certificate in the text representation of the MQTT
+  communication, which exposed them to every log sink
 
 ## 1.0.0 - 2026-05-18
 
