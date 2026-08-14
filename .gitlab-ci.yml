@@ -144,12 +144,11 @@ include:
       rules: *rules_manual
       project: "src/Mqtt/Mqtt.csproj"
       output_directory: "artifacts/${OS}-${ARCH}"
-      self_contained: "true"
       before_script:
         - *update_nuget_source_ro
         - dotnet restore
       execution_matrix: *exec_matrix
-    # Package binaries
+  # Package binaries
   - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/module-packaging/package-module@v0.2.0
     inputs:
       stage: pack
