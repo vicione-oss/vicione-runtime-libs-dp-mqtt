@@ -190,13 +190,11 @@ include:
         - "artifacts/**/*json"
         - "artifacts/**/*zip"
   # Promote staging to production (on tag) ###
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/promote@v1.0.0
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/promote@v2.0.1
     inputs:
-      name: "Promote Binaries: JFrog"
+      name: "Public Release"
       stage: promote
       rules: *rules_only_tags_manual
       source_repository: "vicione-suite-staging"
       destination_repository: "vicione-suite"
-      artifacts:
-        - "artifacts/**/*json"
-        - "artifacts/**/*zip"
+      remote_path: "fbs/${PROJECT_FULLNAME}"
