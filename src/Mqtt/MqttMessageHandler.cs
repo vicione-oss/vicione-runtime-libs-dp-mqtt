@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using ViciOne.ManagedEngine.ExternalCommunication;
 
@@ -59,15 +60,64 @@ internal sealed class MqttMessageHandler
 
     private void ProcessValue(ReceivedMqttMessage received, INode node)
     {
-        var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-        var valueType = received.TypeProperty?.GetAsType() ?? node.ValueType ?? throw new InvalidOperationException("Type of value not found.");
+        if (!TryGetChannel(received, node, node.AffectedChannels, out var channel))
+            return;
 
-        AddValue(received, node, node.AffectedChannels, serializer.Deserialize(received.Message.Payload, valueType, _jsonOptions));
+        var valueType = ReadValueType(received, node);
+
+        received.Values.Add(TryDeserializePayload(received, node, valueType, out var value)
+            ? new() { Channel = channel, Value = value, Timestamp = received.Timestamp, Validity = received.Validity, }
+            : new() { Channel = channel, Value = InvalidValueOf(valueType), Timestamp = received.Timestamp, Validity = 0, });
+    }
+
+    /// <summary>
+    /// The value an invalid data point is published with. A typed incoming link casts the received
+    /// value to its own type without a null check, so a null would fail the transfer of a value
+    /// type instead of arriving as invalid.
+    /// </summary>
+    private static object? InvalidValueOf(Type? type)
+        => type is { IsValueType: true } ? Activator.CreateInstance(type) : null;
+
+    private Type? ReadValueType(ReceivedMqttMessage received, INode node)
+    {
+        try
+        {
+            return received.TypeProperty?.GetAsType() ?? node.ValueType;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDeclaredTypeNotResolvable(received.Message.Topic, ex);
+            return node.ValueType;
+        }
+    }
+
+    private bool TryDeserializePayload(ReceivedMqttMessage received, INode node, Type? valueType, out object? value)
+    {
+        value = null;
+
+        if (valueType is null)
+        {
+            _logger.LogPayloadNotReadable(received.Message.Topic, "unknown", null);
+            return false;
+        }
+
+        try
+        {
+            var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
+            value = serializer.Deserialize(received.Message.Payload, valueType, _jsonOptions);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
+            return false;
+        }
     }
 
     private void ProcessGroupValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<INode[]> routes)
     {
-        var jsonMessage = received.Message.GetPayloadAsJsonNode();
+        if (!TryReadPayloadAsJson(received, out var jsonMessage))
+            return;
 
         foreach (var route in routes)
         {
@@ -77,13 +127,66 @@ internal sealed class MqttMessageHandler
             if (valueJson is null)
                 continue;
 
-            var valueType = NodeValueFactory.GetValueJsonNode(route, received.MetaJson)?.GetValue<string>().ToType() ?? dataPointNode.ValueType ?? throw new InvalidOperationException("Type of value not found.");
+            var valueType = ReadMemberValueType(received, route, dataPointNode);
 
-            AddValue(received, node, dataPointNode.AffectedChannels, valueJson.Deserialize(valueType, _jsonOptions));
+            if (TryDeserializeMember(received, valueJson, valueType, out var value))
+                AddValue(received, node, dataPointNode.AffectedChannels, value, received.Validity);
+            else
+                AddValue(received, node, dataPointNode.AffectedChannels, InvalidValueOf(valueType), 0);
         }
     }
 
-    private void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
+    private bool TryReadPayloadAsJson(ReceivedMqttMessage received, out JsonNode? jsonMessage)
+    {
+        try
+        {
+            jsonMessage = received.Message.GetPayloadAsJsonNode();
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogPayloadNotReadable(received.Message.Topic, "JSON", ex);
+            jsonMessage = null;
+            return false;
+        }
+    }
+
+    private Type? ReadMemberValueType(ReceivedMqttMessage received, INode[] route, INode dataPointNode)
+    {
+        try
+        {
+            return NodeValueFactory.GetValueJsonNode(route, received.MetaJson)?.GetValue<string>().ToType() ?? dataPointNode.ValueType;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDeclaredTypeNotResolvable(received.Message.Topic, ex);
+            return dataPointNode.ValueType;
+        }
+    }
+
+    private bool TryDeserializeMember(ReceivedMqttMessage received, JsonNode valueJson, Type? valueType, out object? value)
+    {
+        value = null;
+
+        if (valueType is null)
+        {
+            _logger.LogPayloadNotReadable(received.Message.Topic, "unknown", null);
+            return false;
+        }
+
+        try
+        {
+            value = valueJson.Deserialize(valueType, _jsonOptions);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
+            return false;
+        }
+    }
+
+    private void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value, int validity)
     {
         if (!TryGetChannel(received, node, affectedChannels, out var channel))
             return;
@@ -93,7 +196,7 @@ internal sealed class MqttMessageHandler
             Channel = channel,
             Value = value,
             Timestamp = received.Timestamp,
-            Validity = received.Validity,
+            Validity = validity,
         });
     }
 

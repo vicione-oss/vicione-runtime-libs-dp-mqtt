@@ -511,6 +511,47 @@ public class MqttDataPortIncoming_
     }
 
     [Fact]
+    public async Task Publishes_an_invalid_value_if_the_payload_cannot_be_read_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(long),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("not a number")
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        var value = messages.Should().ContainSingle().Which;
+        value.Channel.Should().Be("v");
+        value.Validity.Should().Be(0);
+        value.Value.Should().Be(0L);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value"));
+    }
+
+    [Fact]
     public async Task Can_handle_receive_failure_Async()
     {
         Node valueNode = new()
@@ -521,6 +562,7 @@ public class MqttDataPortIncoming_
             AffectedChannels = { "v", },
             TransferredChannels = { "v", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         MqttDataPortCommunication communication = new()
         {
@@ -540,12 +582,7 @@ public class MqttDataPortIncoming_
 
         var message = new MqttApplicationMessageBuilder()
             .WithTopic("value")
-            .WithPayload($$"""
-            {
-                "Type": "{{typeof(int).AssemblyQualifiedName}}",
-                "Value": 23
-            }
-            """)
+            .WithPayload("23")
             .Build();
 
         client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
