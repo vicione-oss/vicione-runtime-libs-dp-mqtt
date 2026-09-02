@@ -1,92 +1,84 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using System.Text.Json.Nodes;
-using MQTTnet.Extensions;
 using ViciOne.ManagedEngine.ExternalCommunication;
 
 namespace ViciOne.Suite.DataPort;
 
-internal static class MqttMessageHandler
+internal sealed class MqttMessageHandler
 {
-    internal static List<ExternalValue> HandleMessage(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs,
-        Dictionary<Guid, IReadOnlyCollection<INode[]>> transferredNodeJsonNodes,
-        Dictionary<string, IReadOnlyCollection<INode>> addressNodes, TimeProvider timeProvider, JsonSerializerOptions jsonOptions, Serializer defaultSerializer)
+    private readonly Dictionary<Guid, IReadOnlyCollection<INode[]>> _jsonRoutesByNode;
+    private readonly Dictionary<string, IReadOnlyCollection<INode>> _nodesByTopic;
+    private readonly TimeProvider _timeProvider;
+    private readonly JsonSerializerOptions _jsonOptions;
+    private readonly Serializer _defaultSerializer;
+
+    internal MqttMessageHandler(
+        Dictionary<Guid, IReadOnlyCollection<INode[]>> jsonRoutesByNode,
+        Dictionary<string, IReadOnlyCollection<INode>> nodesByTopic,
+        TimeProvider timeProvider,
+        JsonSerializerOptions jsonOptions,
+        Serializer defaultSerializer)
     {
-        var timestamp = eventArgs.ApplicationMessage.GetTimestamp(timeProvider).DateTime;
-        var validity = eventArgs.ApplicationMessage.GetValidity();
-        var typeProperty = eventArgs.ApplicationMessage.UserProperties?.FindOptional(MqttUserProperties.Type);
-        var metaJson = typeProperty?.GetAsJsonObject();
+        _jsonRoutesByNode = jsonRoutesByNode;
+        _nodesByTopic = nodesByTopic;
+        _timeProvider = timeProvider;
+        _jsonOptions = jsonOptions;
+        _defaultSerializer = defaultSerializer;
+    }
 
-        var transferredNodes = addressNodes[eventArgs.ApplicationMessage.Topic];
-        List<ExternalValue> values = [];
+    internal List<ExternalValue> HandleMessage(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs)
+    {
+        ReceivedMqttMessage received = new(eventArgs.ApplicationMessage, _timeProvider);
+        var nodes = _nodesByTopic[received.Message.Topic];
 
-        foreach (var transferredNode in transferredNodes)
+        foreach (var node in nodes)
+            ProcessNode(received, node);
+
+        return received.Values;
+    }
+
+    private void ProcessNode(ReceivedMqttMessage received, INode node)
+    {
+        if (_jsonRoutesByNode.TryGetValue(node.Id, out var routes))
+            ProcessGroupValue(received, node, routes);
+        else
+            ProcessValue(received, node);
+    }
+
+    private void ProcessValue(ReceivedMqttMessage received, INode node)
+    {
+        var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
+        var valueType = received.TypeProperty?.GetAsType() ?? node.ValueType ?? throw new InvalidOperationException("Type of value not found.");
+
+        AddValue(received, node, node.AffectedChannels, serializer.Deserialize(received.Message.Payload, valueType, _jsonOptions));
+    }
+
+    private void ProcessGroupValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<INode[]> routes)
+    {
+        var jsonMessage = received.Message.GetPayloadAsJsonNode();
+
+        foreach (var route in routes)
         {
-            var serializer = transferredNode.GetSerializer().ApplyDefault(defaultSerializer);
+            var dataPointNode = route[^1];
+            var valueJson = NodeValueFactory.GetValueJsonNode(route, jsonMessage);
 
-            if (transferredNodeJsonNodes.TryGetValue(transferredNode.Id, out var routes))
-            {
-                var jsonMessage = eventArgs.ApplicationMessage.GetPayloadAsJsonNode();
-                ProcessGroupValue(transferredNode, jsonMessage, routes);
-            }
-            else
-            {
-                ProcessValue(transferredNode, serializer, eventArgs.ApplicationMessage.Payload, typeProperty?.GetAsType() ?? transferredNode.ValueType, transferredNode.AffectedChannels);
-            }
-        }
+            if (valueJson is null)
+                continue;
 
-        return values;
+            var valueType = NodeValueFactory.GetValueJsonNode(route, received.MetaJson)?.GetValue<string>().ToType() ?? dataPointNode.ValueType ?? throw new InvalidOperationException("Type of value not found.");
 
-        void ProcessValue(INode transferredNode, Serializer serializer, ReadOnlySequence<byte> data, Type? nodeType, IReadOnlyCollection<string> affectedChannels)
-        {
-            if (nodeType is null)
-                throw new InvalidOperationException("Type of value not found.");
-
-            var value = serializer.Deserialize(data, nodeType, jsonOptions);
-            var channel = affectedChannels.First(transferredNode.TransferredChannels.Contains);
-
-            values.Add(new()
-            {
-                Channel = channel,
-                Value = value,
-                Timestamp = timestamp,
-                Validity = validity,
-            });
-        }
-
-        void ProcessJsonValue(INode transferredNode, JsonNode? node, Type? nodeType, IReadOnlyCollection<string> affectedChannels)
-        {
-            if (node is null)
-                return;
-            if (nodeType is null)
-                throw new InvalidOperationException("Type of value not found.");
-
-            var value = node.Deserialize(nodeType, jsonOptions);
-            var channel = affectedChannels.First(transferredNode.TransferredChannels.Contains);
-
-            values.Add(new()
-            {
-                Channel = channel,
-                Value = value,
-                Timestamp = timestamp,
-                Validity = validity,
-            });
-        }
-
-        void ProcessGroupValue(INode transferredNode, JsonNode? jsonMessage, IReadOnlyCollection<INode[]> routes)
-        {
-            foreach (var route in routes)
-            {
-                var dataPortNode = route[^1];
-                var valueNode = NodeValueFactory.GetValueJsonNode(route, jsonMessage);
-                var valueType = NodeValueFactory.GetValueJsonNode(route, metaJson)?.GetValue<string>().ToType();
-                valueType ??= dataPortNode.ValueType;
-
-                ProcessJsonValue(transferredNode, valueNode, valueType, dataPortNode.AffectedChannels);
-            }
+            AddValue(received, node, dataPointNode.AffectedChannels, valueJson.Deserialize(valueType, _jsonOptions));
         }
     }
+
+    private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
+        => received.Values.Add(new()
+        {
+            Channel = affectedChannels.First(node.TransferredChannels.Contains),
+            Value = value,
+            Timestamp = received.Timestamp,
+            Validity = received.Validity,
+        });
 }
