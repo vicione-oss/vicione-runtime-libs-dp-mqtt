@@ -4,7 +4,7 @@
 
 ### Changed
 
-- Update `.yaml` files format to `2.0.0` (`ViciOne.TreeBuilder`)
+- Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `1.0.0`
 
