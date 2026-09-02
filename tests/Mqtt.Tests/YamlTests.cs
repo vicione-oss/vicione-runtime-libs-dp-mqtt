@@ -77,7 +77,7 @@ public class YamlTests
             .Single(n => n.Id == nodeTypeId)
             .ChildNodes;
 
-        childNodes.Single(c => c.Id == MqttNodeDesignId.UserProperty).MaxInstances.Should().Be(16);
+        childNodes.Single(c => c.Id == MqttNodeDesignId.UserProperty).MaxInstances.Should().Be(EnvelopeChildren.MaxUserProperties);
         childNodes.Where(c => c.Id != MqttNodeDesignId.UserProperty).Should().OnlyContain(c => c.MaxInstances == 1);
     }
 

@@ -34,6 +34,8 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
 
     public override void Initialize()
     {
+        _ = EnvelopeChildren.Create(_communication.Nodes, _supportsExtendedProtocol);
+
         var idNodes = _communication.Nodes.ToDictionary(n => n.Id, n => (INode)n);
         Initialize(_communication.Nodes, node => _nodeTopics.Add(node.Id, GenerateTopic(node.GetRoute(idNodes))));
     }

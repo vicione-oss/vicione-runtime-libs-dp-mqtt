@@ -517,6 +517,39 @@ public class MqttDataPortOutgoing_
             .ContainSingle()
             .Which.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
     }
+
+    [Fact]
+    public void Refuses_to_start_with_an_envelope_configuration_it_cannot_serve()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", "b", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node childNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = valueNode.Id,
+            Name = "batchId",
+            AffectedChannels = { "b", },
+            DesignId = MqttNodeDesignId.UserProperty,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, childNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V311,
+        };
+
+        var act = () => new MqttDataPortOutgoing(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*MQTT 3.1.1 cannot carry*");
+    }
 }
 
 public class MqttDataPortOutgoing_SendAsync
