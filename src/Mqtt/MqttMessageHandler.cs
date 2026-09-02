@@ -14,6 +14,7 @@ internal sealed class MqttMessageHandler
     private readonly TimeProvider _timeProvider;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly Serializer _defaultSerializer;
+    private readonly EnvelopeChildren _envelopeChildren;
     private readonly ILogger<MqttDataPortIncoming> _logger;
 
     internal MqttMessageHandler(
@@ -22,6 +23,7 @@ internal sealed class MqttMessageHandler
         TimeProvider timeProvider,
         JsonSerializerOptions jsonOptions,
         Serializer defaultSerializer,
+        EnvelopeChildren envelopeChildren,
         ILogger<MqttDataPortIncoming> logger)
     {
         _jsonRoutesByNode = jsonRoutesByNode;
@@ -29,6 +31,7 @@ internal sealed class MqttMessageHandler
         _timeProvider = timeProvider;
         _jsonOptions = jsonOptions;
         _defaultSerializer = defaultSerializer;
+        _envelopeChildren = envelopeChildren;
         _logger = logger;
     }
 
@@ -63,11 +66,13 @@ internal sealed class MqttMessageHandler
         if (!TryGetChannel(received, node, node.AffectedChannels, out var channel))
             return;
 
-        var valueType = ReadValueType(received, node);
+        var valueType = node.ValueType;
 
         received.Values.Add(TryDeserializePayload(received, node, valueType, out var value)
             ? new() { Channel = channel, Value = value, Timestamp = received.Timestamp, Validity = received.Validity, }
             : new() { Channel = channel, Value = InvalidValueOf(valueType), Timestamp = received.Timestamp, Validity = 0, });
+
+        AddEnvelopeChildren(received, node);
     }
 
     /// <summary>
@@ -78,17 +83,50 @@ internal sealed class MqttMessageHandler
     private static object? InvalidValueOf(Type? type)
         => type is { IsValueType: true } ? Activator.CreateInstance(type) : null;
 
-    private Type? ReadValueType(ReceivedMqttMessage received, INode node)
+    /// <summary>
+    /// Publishes one value per envelope child of <paramref name="node"/> that fans out to a value of
+    /// its own, in the order the tree declares them, so a received message reaches the engine as the
+    /// data point and its children together. <see cref="EnvelopeChildKind.Validity"/> and
+    /// <see cref="EnvelopeChildKind.Type"/> are outbound only, so neither is a fan-out target; the
+    /// validity of the received message reaches the engine as the validity of the data point
+    /// itself.
+    /// </summary>
+    private void AddEnvelopeChildren(ReceivedMqttMessage received, INode node)
     {
-        try
+        var children = _envelopeChildren.Of(node.Id);
+
+        for (var i = 0; i < children.Count; i++)
         {
-            return received.TypeProperty?.GetAsType() ?? node.ValueType;
+            var child = children[i];
+
+            if (child.Kind is EnvelopeChildKind.Validity or EnvelopeChildKind.Type)
+                continue;
+
+            // A Timestamp the engine reads outbound but never linked inbound has no channel of its
+            // own, and the engine routes nothing by the empty channel every one of them would share.
+            if (child.Channel.Length == 0)
+                continue;
+
+            AddEnvelopeChild(received, child);
         }
-        catch (Exception ex)
+    }
+
+    private void AddEnvelopeChild(ReceivedMqttMessage received, EnvelopeChild child)
+    {
+        var result = MqttEnvelopeReader.TryRead(child, received.Message, out var value);
+
+        if (result == EnvelopeReadResult.Malformed)
+            _logger.LogEnvelopeValueNotReadable(child.Key, received.Message.Topic);
+
+        var read = result == EnvelopeReadResult.Read;
+
+        received.Values.Add(new()
         {
-            _logger.LogDeclaredTypeNotResolvable(received.Message.Topic, ex);
-            return node.ValueType;
-        }
+            Channel = child.Channel,
+            Value = read ? value : InvalidValueOf(child.ValueType),
+            Timestamp = received.Timestamp,
+            Validity = read ? 1 : 0,
+        });
     }
 
     private bool TryDeserializePayload(ReceivedMqttMessage received, INode node, Type? valueType, out object? value)
@@ -127,7 +165,9 @@ internal sealed class MqttMessageHandler
             if (valueJson is null)
                 continue;
 
-            var valueType = ReadMemberValueType(received, route, dataPointNode);
+            // The data type its data point is configured with, never the one the publisher declares:
+            // a member of a group message is read exactly as a message of its own would be.
+            var valueType = dataPointNode.ValueType;
 
             if (TryDeserializeMember(received, valueJson, valueType, out var value))
                 AddValue(received, node, dataPointNode.AffectedChannels, value, received.Validity);
@@ -148,19 +188,6 @@ internal sealed class MqttMessageHandler
             _logger.LogPayloadNotReadable(received.Message.Topic, "JSON", ex);
             jsonMessage = null;
             return false;
-        }
-    }
-
-    private Type? ReadMemberValueType(ReceivedMqttMessage received, INode[] route, INode dataPointNode)
-    {
-        try
-        {
-            return NodeValueFactory.GetValueJsonNode(route, received.MetaJson)?.GetValue<string>().ToType() ?? dataPointNode.ValueType;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDeclaredTypeNotResolvable(received.Message.Topic, ex);
-            return dataPointNode.ValueType;
         }
     }
 

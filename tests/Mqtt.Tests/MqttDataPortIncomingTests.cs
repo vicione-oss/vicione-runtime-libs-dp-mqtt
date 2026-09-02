@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using MQTTnet;
 using MQTTnet.Extensions;
+using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using NSubstitute;
 using ViciOne.ManagedEngine.ExternalCommunication;
@@ -108,6 +109,7 @@ public class MqttDataPortIncoming_
             ParentId = groupNode.Id,
             AffectedChannels = { "gv1", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         Node value2Node = new()
         {
@@ -116,6 +118,7 @@ public class MqttDataPortIncoming_
             ParentId = groupNode.Id,
             AffectedChannels = { "gv2", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         MqttDataPortCommunication communication = new()
         {
@@ -229,6 +232,7 @@ public class MqttDataPortIncoming_
             ParentId = groupNode.Id,
             AffectedChannels = { "gv1", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         Node value2Node = new()
         {
@@ -237,6 +241,7 @@ public class MqttDataPortIncoming_
             ParentId = groupNode.Id,
             AffectedChannels = { "gv2", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         MqttDataPortCommunication communication = new()
         {
@@ -270,6 +275,63 @@ public class MqttDataPortIncoming_
         messages.Should().ContainSingle().Which.Channel.Should().Be("gv1");
     }
 
+    /// <summary>
+    /// A member of a group message is read as the data type its data point is configured with, the
+    /// same as a message of its own. The type a publisher declares is not consulted, so a topic
+    /// cannot decide which type the port loads.
+    /// </summary>
+    [Fact]
+    public async Task Ignores_the_type_a_publisher_declares_for_a_group_member_Async()
+    {
+        Node groupNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            ParentId = null,
+            TransferredChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            ParentId = groupNode.Id,
+            AffectedChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [groupNode, valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("group")
+            .WithPayload("""
+            {
+                "value": 23
+            }
+            """)
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes($$"""
+            {
+                "value":"{{typeof(long).AssemblyQualifiedName}}"
+            }
+            """))
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<int>().And.Be(23);
+    }
+
     [Theory]
     [MemberData(nameof(GetSingleNodeVariants))]
     [SuppressMessage("Usage", "xUnit1044:Avoid using TheoryData type arguments that are not serializable",
@@ -282,6 +344,10 @@ public class MqttDataPortIncoming_
         {
             Host = "local",
             Nodes = nodes,
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
         };
 
         var client = Substitute.For<IVirtualMqttClient>();
@@ -298,15 +364,6 @@ public class MqttDataPortIncoming_
 
     public static TheoryData<Node[], MqttApplicationMessage, Action<List<ExternalValue>>> GetSingleNodeVariants()
     {
-        Node nodeWithoutType = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "value",
-            ParentId = null,
-            AffectedChannels = { "v", },
-            TransferredChannels = { "v", },
-            DesignId = MqttNodeDesignId.Topic,
-        };
         Node nodeWithType = new()
         {
             Id = Guid.NewGuid(),
@@ -349,10 +406,11 @@ public class MqttDataPortIncoming_
         return new()
         {
             {
-                new[] { nodeWithoutType },
+                new[] { nodeWithType },
                 new MqttApplicationMessageBuilder()
                     .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
+                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(string).AssemblyQualifiedName ?? string.Empty))
+                    .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("112"))
                     .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(new DateTime(2023, 5, 1, 0, 0, 0, DateTimeKind.Utc).ToString("O")))
                     .WithPayload(Encoding.UTF8.GetBytes("23"))
                     .Build(),
@@ -361,29 +419,8 @@ public class MqttDataPortIncoming_
                     var value = m.Should().ContainSingle().Which;
                     value.Channel.Should().Be("v");
                     value.Value.Should().Be(23);
+                    value.Validity.Should().Be(112);
                     value.Timestamp.Should().Be(new(2023, 5, 1, 0, 0, 0, DateTimeKind.Utc));
-                }
-            },
-            {
-                new[] { nodeWithoutType },
-                new MqttApplicationMessageBuilder()
-                    .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
-                    .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("112"))
-                    .Build(),
-                m => m.Should().ContainSingle().Which.Validity.Should().Be(112)
-            },
-            {
-                new[] { nodeWithoutType },
-                new MqttApplicationMessageBuilder()
-                    .WithTopic("value")
-                    .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
-                    .Build(),
-                m =>
-                {
-                    var value = m.Should().ContainSingle().Subject;
-                    value.Validity.Should().Be(1);
-                    value.Timestamp.Should().Be(new(2023, 1, 1, 0, 0, 0, DateTimeKind.Utc));
                 }
             },
             {
@@ -432,6 +469,35 @@ public class MqttDataPortIncoming_
                 }
             },
         };
+    }
+
+    [Fact]
+    public async Task Ignores_the_type_property_a_publisher_declared_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(string),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("\"23\"")
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
+            .Build());
+
+        var value = messages.Should().ContainSingle().Which;
+        value.Value.Should().Be("23");
+        value.Value.Should().BeOfType<string>();
     }
 
     [Fact]
@@ -538,20 +604,11 @@ public class MqttDataPortIncoming_
             Host = "local",
         };
 
-        var client = Substitute.For<IVirtualMqttClient>();
-        using MqttDataPortIncoming incoming = new(communication, client, new FakeLogger<MqttDataPortIncoming>(), AssemblyLoadContext.Default, TimeProvider.System);
-        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
-        List<ExternalValue> messages = [];
-        incoming.Received += messages.AddRange;
-
-        var message = new MqttApplicationMessageBuilder()
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
             .WithTopic("value")
             .WithPayload("23")
             .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes(text))
-            .Build();
-
-        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
-            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+            .Build());
 
         messages.Should().ContainSingle().Which.Validity.Should().Be(expected);
     }
@@ -578,22 +635,210 @@ public class MqttDataPortIncoming_
             Host = "local",
         };
 
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("the day before"))
+            .Build());
+
+        messages.Should().ContainSingle().Which.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
+    [Fact]
+    public async Task Publishes_the_data_point_and_its_envelope_children_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("42"))
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().SatisfyRespectively(
+            parent =>
+            {
+                parent.Channel.Should().Be("v");
+                parent.Value.Should().Be(23L);
+                parent.Timestamp.Should().Be(s_senderTimestamp);
+                parent.Validity.Should().Be(1);
+            },
+            batch =>
+            {
+                batch.Channel.Should().Be("batch");
+                batch.Value.Should().Be(42L);
+                batch.Timestamp.Should().Be(s_senderTimestamp);
+                batch.Validity.Should().Be(1);
+            },
+            sent =>
+            {
+                sent.Channel.Should().Be("sent");
+                sent.Value.Should().Be(s_senderTimestamp);
+                sent.Timestamp.Should().Be(s_senderTimestamp);
+                sent.Validity.Should().Be(1);
+            });
+    }
+
+    [Fact]
+    public async Task Publishes_an_envelope_child_without_a_property_as_invalid_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().HaveCount(3);
+        var batch = messages[1];
+        batch.Channel.Should().Be("batch");
+        batch.Validity.Should().Be(0);
+        batch.Value.Should().Be(0L);
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Publishes_an_unparsable_envelope_child_as_invalid_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("abc"))
+            .Build());
+
+        messages.Should().HaveCount(3);
+        messages[0].Validity.Should().Be(1);
+        messages[1].Channel.Should().Be("batch");
+        messages[1].Validity.Should().Be(0);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("batchId") && e.Message.Contains("value"));
+    }
+
+    [Fact]
+    public async Task Publishes_the_envelope_children_of_an_unreadable_payload_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("not a number")
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("42"))
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().HaveCount(3);
+        messages[0].Validity.Should().Be(0);
+        messages[0].Value.Should().Be(0L);
+        messages[1].Value.Should().Be(42L);
+        messages[2].Value.Should().Be(s_senderTimestamp);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value"));
+    }
+
+    /// <summary>
+    /// A fixed child the engine never linked has no channel of its own, and the tree is accepted
+    /// all the same: a <c>Timestamp</c> is the one child the engine may leave unlinked and still
+    /// see on the wire outbound.
+    /// </summary>
+    [Fact]
+    public async Task Skips_an_envelope_child_the_engine_has_not_linked_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(long),
+        };
+        Node sentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "sent",
+            ParentId = valueNode.Id,
+            DesignId = MqttNodeDesignId.Timestamp,
+            ValueType = typeof(DateTime),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, sentNode,],
+            Host = "local",
+        };
+        _ = new MqttDataPortProperties(communication) { ProtocolVersion = MqttProtocolVersion.V500, };
+
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().ContainSingle().Which.Channel.Should().Be("v");
+    }
+
+    private static readonly DateTime s_senderTimestamp = new(2024, 4, 1, 12, 0, 0, DateTimeKind.Utc);
+
+    private static (MqttDataPortCommunication Communication, Node Parent) CreateTreeWithEnvelopeChildren()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", "batch", "sent", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(long),
+        };
+        Node batchNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "batchId",
+            ParentId = valueNode.Id,
+            AffectedChannels = { "batch", },
+            DesignId = MqttNodeDesignId.UserProperty,
+            ValueType = typeof(long),
+        };
+        Node sentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "sent",
+            ParentId = valueNode.Id,
+            AffectedChannels = { "sent", },
+            DesignId = MqttNodeDesignId.Timestamp,
+            ValueType = typeof(DateTime),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, batchNode, sentNode,],
+            Host = "local",
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+
+        return (communication, valueNode);
+    }
+
+    private static async Task<List<ExternalValue>> ReceiveAsync(MqttDataPortCommunication communication, ILogger<MqttDataPortIncoming> logger, MqttApplicationMessage message)
+    {
         var client = Substitute.For<IVirtualMqttClient>();
-        using MqttDataPortIncoming incoming = new(communication, client, new FakeLogger<MqttDataPortIncoming>(), AssemblyLoadContext.Default, TimeProvider.System);
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
         await incoming.ConnectAsync(TestContext.Current.CancellationToken);
         List<ExternalValue> messages = [];
         incoming.Received += messages.AddRange;
 
-        var message = new MqttApplicationMessageBuilder()
-            .WithTopic("value")
-            .WithPayload("23")
-            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("the day before"))
-            .Build();
-
         client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
             string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
 
-        messages.Should().ContainSingle().Which.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        return messages;
     }
 
     [Fact]

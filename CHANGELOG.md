@@ -2,6 +2,10 @@
 
 ## Next
 
+### Added
+
+- Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
+  `Validity` and `Type` children that travel in the user properties of its message
 ### Changed
 
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
@@ -9,6 +13,8 @@
 - Update `MQTTnet.Extensions` to `1.0.0`
 - **Breaking:** Stop sending `Timestamp`, `Validity` and `Type` implicitly; a message carries
   exactly the envelope children its data point declares
+- **Breaking:** Deserialize a received payload by the data type of its data point instead of the
+  `Type` user property, which is ignored
 
 ### Fixed
 

@@ -17,6 +17,6 @@ internal static partial class MqttDataPortIncomingLog
     [LoggerMessage(3, LogLevel.Warning, "Cannot read the payload received on '{Topic}' as '{ValueType}'. The data point is published as invalid.")]
     internal static partial void LogPayloadNotReadable(this ILogger<MqttDataPortIncoming> logger, string topic, string valueType, Exception? exception);
 
-    [LoggerMessage(4, LogLevel.Warning, "Cannot resolve the data type the message on '{Topic}' declares. The configured data type of the data point is used instead.")]
-    internal static partial void LogDeclaredTypeNotResolvable(this ILogger<MqttDataPortIncoming> logger, string topic, Exception exception);
+    [LoggerMessage(5, LogLevel.Warning, "Cannot read the envelope value '{Key}' of the message on '{Topic}'. The data point is published as invalid.")]
+    internal static partial void LogEnvelopeValueNotReadable(this ILogger<MqttDataPortIncoming> logger, string key, string topic);
 }
