@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using ViciOne.ManagedEngine.ExternalCommunication;
 
 namespace ViciOne.Suite.DataPort;
@@ -13,25 +13,35 @@ internal sealed class MqttMessageHandler
     private readonly TimeProvider _timeProvider;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly Serializer _defaultSerializer;
+    private readonly ILogger<MqttDataPortIncoming> _logger;
 
     internal MqttMessageHandler(
         Dictionary<Guid, IReadOnlyCollection<INode[]>> jsonRoutesByNode,
         Dictionary<string, IReadOnlyCollection<INode>> nodesByTopic,
         TimeProvider timeProvider,
         JsonSerializerOptions jsonOptions,
-        Serializer defaultSerializer)
+        Serializer defaultSerializer,
+        ILogger<MqttDataPortIncoming> logger)
     {
         _jsonRoutesByNode = jsonRoutesByNode;
         _nodesByTopic = nodesByTopic;
         _timeProvider = timeProvider;
         _jsonOptions = jsonOptions;
         _defaultSerializer = defaultSerializer;
+        _logger = logger;
     }
 
     internal List<ExternalValue> HandleMessage(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs)
     {
+        var topic = eventArgs.ApplicationMessage.Topic;
+
+        if (!_nodesByTopic.TryGetValue(topic, out var nodes))
+        {
+            _logger.LogUnknownTopic(topic);
+            return [];
+        }
+
         ReceivedMqttMessage received = new(eventArgs.ApplicationMessage, _timeProvider);
-        var nodes = _nodesByTopic[received.Message.Topic];
 
         foreach (var node in nodes)
             ProcessNode(received, node);
@@ -73,12 +83,33 @@ internal sealed class MqttMessageHandler
         }
     }
 
-    private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
-        => received.Values.Add(new()
+    private void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
+    {
+        if (!TryGetChannel(received, node, affectedChannels, out var channel))
+            return;
+
+        received.Values.Add(new()
         {
-            Channel = affectedChannels.First(node.TransferredChannels.Contains),
+            Channel = channel,
             Value = value,
             Timestamp = received.Timestamp,
             Validity = received.Validity,
         });
+    }
+
+    private bool TryGetChannel(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, out string channel)
+    {
+        foreach (var affectedChannel in affectedChannels)
+        {
+            if (node.TransferredChannels.Contains(affectedChannel))
+            {
+                channel = affectedChannel;
+                return true;
+            }
+        }
+
+        _logger.LogChannelNotFound(received.Message.Topic, node.Name);
+        channel = string.Empty;
+        return false;
+    }
 }

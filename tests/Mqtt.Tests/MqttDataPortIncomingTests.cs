@@ -435,6 +435,82 @@ public class MqttDataPortIncoming_
     }
 
     [Fact]
+    public async Task Skips_a_message_for_an_unknown_topic_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<IReadOnlyCollection<ExternalValue>> batches = [];
+        incoming.Received += batches.Add;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("somewhere/else")
+            .WithPayload("23")
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        batches.Should().BeEmpty("a message that reaches no data point must not reach the engine as an empty batch");
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("somewhere/else"));
+    }
+
+    [Fact]
+    public async Task Skips_a_data_point_that_transfers_none_of_its_channels_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "unrelated", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        messages.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value"));
+    }
+
+    [Fact]
     public async Task Can_handle_receive_failure_Async()
     {
         Node valueNode = new()

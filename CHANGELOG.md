@@ -10,6 +10,10 @@
 - **Breaking:** Stop sending `Timestamp`, `Validity` and `Type` implicitly; a message carries
   exactly the envelope children its data point declares
 
+### Fixed
+
+- Skip a message received on a topic no data point addresses, or on one whose data point transfers
+  none of its channels, with a warning, instead of failing the message and raising an empty batch
 ## 1.0.0 - 2026-05-18
 
 No changes
