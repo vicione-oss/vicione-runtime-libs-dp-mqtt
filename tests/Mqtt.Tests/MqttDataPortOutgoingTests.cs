@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.Loader;
@@ -577,5 +578,65 @@ public class MqttDataPortOutgoing_
 
         var json = Encoding.UTF8.GetString(messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.ValueBuffer.Span);
         JsonNode.Parse(json)!["myValue"]!.GetValue<string>().Should().Be(typeof(JsonObject).AssemblyQualifiedName!);
+    }
+}
+
+public class MqttDataPortOutgoing_SendAsync
+{
+    [Fact]
+    public async Task Publishes_a_plain_data_point_on_the_wire_Async()
+    {
+        Node plantNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "plant",
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node temperatureNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "temperature",
+            ParentId = plantNode.Id,
+            AffectedChannels = { "t", },
+            TransferredChannels = { "t", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties =
+            {
+                { MqttNodeProperties.Retain, new() { Value = true, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [plantNode, temperatureNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
+            QualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
+        };
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        List<ExternalValue> values =
+        [
+            new()
+            {
+                Channel = "t",
+                Value = 21.5,
+                Validity = 100,
+                Timestamp = new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc),
+            },
+        ];
+
+        await outgoing.SendAsync(7, values, TestContext.Current.CancellationToken);
+
+        var message = messages.Should().ContainSingle().Which;
+        message.Topic.Should().Be("plant/temperature");
+        message.Payload.ToArray().Should().Equal(Encoding.UTF8.GetBytes("21.5"));
+        message.QualityOfServiceLevel.Should().Be(MqttQualityOfServiceLevel.AtLeastOnce);
+        message.Retain.Should().BeTrue();
+        message.ContentType.Should().Be("application/json");
+        message.PayloadFormatIndicator.Should().Be(MqttPayloadFormatIndicator.CharacterData);
     }
 }
