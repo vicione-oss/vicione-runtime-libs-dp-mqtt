@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
@@ -42,25 +41,19 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
     protected override MqttApplicationMessageBuilder HandleGroupNode(INode node, JsonObject data, JsonObject meta, IReadOnlyCollection<ExternalValue> values)
     {
         var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-        var timestamp = values.Max(v => v.Timestamp);
-        var validity = values.Min(v => v.Validity);
-        var typeInfo = JsonSerializer.Serialize(meta);
         var payload = JsonSerializer.SerializeToUtf8Bytes(data);
-        return CreateDefaultBuilder(node, serializer, timestamp, validity, typeInfo, payload);
+        return CreateDefaultBuilder(node, serializer, payload);
     }
 
     protected override MqttApplicationMessageBuilder HandleSingleNode(INode node, ExternalValue value)
     {
         var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-        var timestamp = value.Timestamp;
-        var validity = value.Validity;
         var type = value.Value?.GetType() ?? typeof(object);
-        var typeInfo = type.AssemblyQualifiedName;
         var payload = serializer.Serialize(value.Value, type, JsonSetup.PreserveTypeOptions);
-        return CreateDefaultBuilder(node, serializer, timestamp, validity, typeInfo, payload);
+        return CreateDefaultBuilder(node, serializer, payload);
     }
 
-    private MqttApplicationMessageBuilder CreateDefaultBuilder(INode node, Serializer serializer, DateTime timestamp, int validity, string? typeInfo, byte[] payload)
+    private MqttApplicationMessageBuilder CreateDefaultBuilder(INode node, Serializer serializer, byte[] payload)
     {
         var builder = new MqttApplicationMessageBuilder()
             .WithTopic(_nodeTopics[node.Id])
@@ -72,11 +65,7 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
         {
             builder
                 .WithPayloadFormatIndicator(MqttPayloadFormatIndicator.CharacterData)
-                .WithContentType(serializer.ToContentType())
-                .WithUserProperty(MqttUserProperties.Timestamp, timestamp)
-                .WithUserProperty(MqttUserProperties.Validity, validity);
-            if (typeInfo is not null)
-                builder.WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeInfo));
+                .WithContentType(serializer.ToContentType());
         }
         return builder;
     }

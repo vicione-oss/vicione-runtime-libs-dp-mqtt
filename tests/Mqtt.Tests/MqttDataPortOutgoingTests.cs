@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
@@ -108,9 +107,7 @@ public class MqttDataPortOutgoing_
             {
                 m.Topic.Should().Be("group/value");
                 JsonSerializer.Deserialize<int>(m.ConvertPayloadToString()).Should().Be(112);
-                Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Type).ValueBuffer.Span).Should().Be(typeof(int).AssemblyQualifiedName);
-                DateTime.Parse(Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Timestamp).ValueBuffer.Span), CultureInfo.InvariantCulture).Should().Be(timestamp);
-                Encoding.UTF8.GetString(m.UserProperties.FindRequired(MqttUserProperties.Validity).ValueBuffer.Span).Should().Be("100");
+                m.UserProperties.Should().BeNullOrEmpty();
             });
     }
 
@@ -197,17 +194,7 @@ public class MqttDataPortOutgoing_
 
         var message = messages.Should().ContainSingle().Which;
         message.Topic.Should().Be("group");
-        Encoding.UTF8.GetString(message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Type).Which.ValueBuffer.Span).Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$""""
-        {
-            "value1": "{{typeof(int).AssemblyQualifiedName}}",
-            "subgroup": {
-                "value2": "{{typeof(int).AssemblyQualifiedName}}",
-                "value3": "{{typeof(object).AssemblyQualifiedName}}"
-            }
-        }
-        """")));
-        message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Timestamp).Which.GetDateTime().Should().Be(new(2023, 1, 1, 0, 10, 0, DateTimeKind.Utc));
-        message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Validity).Which.Get<int>().Should().Be(25);
+        message.UserProperties.Should().BeNullOrEmpty();
         message.ConvertPayloadToString().Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$"""
         {
             "value1": 23,
@@ -334,7 +321,7 @@ public class MqttDataPortOutgoing_
     }
 
     [Fact]
-    public async Task Sends_meta_data_as_user_properties_for_version_5_Async()
+    public async Task Omits_user_properties_for_a_data_point_without_children_Async()
     {
         Node node = new()
         {
@@ -356,7 +343,6 @@ public class MqttDataPortOutgoing_
         var client = Substitute.For<IVirtualMqttClient>();
         await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
         using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-        var timestamp = DateTime.UtcNow;
         List<ExternalValue> values =
         [
             new()
@@ -364,16 +350,13 @@ public class MqttDataPortOutgoing_
                 Channel = "v",
                 Value = 112,
                 Validity = 100,
-                Timestamp = timestamp,
+                Timestamp = DateTime.UtcNow,
             },
         ];
 
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
-        messages.Should().ContainSingle().Which.UserProperties.Should().SatisfyRespectively(
-            ts => FluentActions.Invoking(() => DateTime.Parse(Encoding.UTF8.GetString(ts.ValueBuffer.Span), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)).Should().NotThrow().Which.Should().Be(timestamp),
-            v => FluentActions.Invoking(() => int.Parse(Encoding.UTF8.GetString(v.ValueBuffer.Span), CultureInfo.InvariantCulture)).Should().NotThrow().Which.Should().Be(100),
-            t => FluentActions.Invoking(() => Type.GetType(Encoding.UTF8.GetString(t.ValueBuffer.Span))).Should().NotThrow().Which.Should().Be<int>());
+        messages.Should().ContainSingle().Which.UserProperties.Should().BeNullOrEmpty();
     }
 
     [Fact]
@@ -533,51 +516,6 @@ public class MqttDataPortOutgoing_
         messages.Should()
             .ContainSingle()
             .Which.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
-    }
-
-    [Fact]
-    public async Task Can_send_group_node_with_type_Async()
-    {
-        Node parentNode = new()
-        {
-            Name = "parent",
-            TransferredChannels = { "v", },
-            DesignId = MqttNodeDesignId.Topic,
-        };
-        Node valueNode = new()
-        {
-            Id = Guid.NewGuid(),
-            ParentId = parentNode.Id,
-            Name = "myValue",
-            AffectedChannels = { "v", },
-            DesignId = MqttNodeDesignId.Topic,
-        };
-        MqttDataPortCommunication communication = new()
-        {
-            Nodes = [parentNode, valueNode,],
-            Host = "local",
-        };
-        _ = new MqttDataPortProperties(communication)
-        {
-            ProtocolVersion = MqttProtocolVersion.V500,
-        };
-        List<MqttApplicationMessage> messages = [];
-        var client = Substitute.For<IVirtualMqttClient>();
-        await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-        List<ExternalValue> values =
-        [
-            new()
-            {
-                Channel = "v",
-                Value = new JsonObject() { { "Test", 112 }, },
-            },
-        ];
-
-        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
-
-        var json = Encoding.UTF8.GetString(messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.ValueBuffer.Span);
-        JsonNode.Parse(json)!["myValue"]!.GetValue<string>().Should().Be(typeof(JsonObject).AssemblyQualifiedName!);
     }
 }
 

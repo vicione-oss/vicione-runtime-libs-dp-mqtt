@@ -34,6 +34,7 @@ public class MqttDataPort_
             AffectedChannels = { "v", "gv", },
             TransferredChannels = { "v", },
             DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
         };
         MqttDataPortCommunication communication = new()
         {
@@ -79,7 +80,8 @@ public class MqttDataPort_
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
         messages.Should().HaveCount(2);
-        messages.Should().BeEquivalentTo(values);
+        messages.Should().BeEquivalentTo(values, o => o.Excluding(v => v.Timestamp).Excluding(v => v.Validity));
+        messages.Should().AllSatisfy(m => m.Validity.Should().Be(1));
     }
 
     [Theory]
@@ -98,7 +100,7 @@ public class MqttDataPort_
             AffectedChannels = { "v", "gv", },
             TransferredChannels = { "v", },
             DesignId = MqttNodeDesignId.Topic,
-            ValueType = typeof(string),
+            ValueType = value!.GetType(),
             Properties = new()
             {
                 { MqttNodeProperties.Serializer, new() { Value = serializer, } },
@@ -141,6 +143,7 @@ public class MqttDataPort_
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
         messages.Should().ContainSingle();
-        messages.Should().BeEquivalentTo(values);
+        messages.Should().BeEquivalentTo(values, o => o.Excluding(v => v.Timestamp).Excluding(v => v.Validity));
+        messages.Should().AllSatisfy(m => m.Validity.Should().Be(1));
     }
 }
