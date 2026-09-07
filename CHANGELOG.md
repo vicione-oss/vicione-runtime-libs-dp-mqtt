@@ -16,6 +16,7 @@
   exactly the envelope children its data point declares
 - **Breaking:** Deserialize a received payload by the data type of its data point instead of the
   `Type` user property, which is ignored
+- Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 
 ### Fixed
 
