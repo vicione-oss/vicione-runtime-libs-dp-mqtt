@@ -7,6 +7,8 @@
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `1.0.0`
+- **Breaking:** Stop sending `Timestamp`, `Validity` and `Type` implicitly; a message carries
+  exactly the envelope children its data point declares
 
 ## 1.0.0 - 2026-05-18
 

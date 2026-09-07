@@ -20,7 +20,7 @@ using Xunit;
 
 namespace ViciOne.Suite.DataPort;
 
-public class MqttDataPortOutgoing_
+public class MqttDataPortOutgoing_ctor
 {
     [Fact]
     public async Task DependencyInjectionProviderFactory_can_create_instance_Async()
@@ -43,6 +43,89 @@ public class MqttDataPortOutgoing_
         instance.Should().NotBeNull().And.BeOfType<MqttDataPortOutgoing>();
     }
 
+    [Fact]
+    public void Refuses_to_start_with_an_envelope_configuration_it_cannot_serve()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", "b", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node childNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = valueNode.Id,
+            Name = "batchId",
+            AffectedChannels = { "b", },
+            DesignId = MqttNodeDesignId.UserProperty,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, childNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V311,
+        };
+
+        var act = () => new MqttDataPortOutgoing(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*MQTT 3.1.1 cannot carry*");
+    }
+
+    /// <summary>
+    /// A folder published as one group message has no envelope, so a child under one of its data
+    /// points could never be published. A data point in a group transfers no value of its own —
+    /// its folder does — which is the shape the port already refuses.
+    /// </summary>
+    [Fact]
+    public void Refuses_an_envelope_child_under_a_data_point_of_a_folder_group()
+    {
+        Node folderNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            TransferredChannels = { "g", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = folderNode.Id,
+            Name = "value",
+            AffectedChannels = { "g", },
+            TransferredChannels = { "b", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node childNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = valueNode.Id,
+            Name = "batchId",
+            AffectedChannels = { "b", },
+            DesignId = MqttNodeDesignId.UserProperty,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [folderNode, valueNode, childNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+
+        var act = () => new MqttDataPortOutgoing(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*'value' has envelope children but transfers no value of its own*");
+    }
+}
+
+public class MqttDataPortOutgoing_
+{
     [Fact]
     public async Task Can_send_node_as_group_and_value_node_Async()
     {
@@ -517,43 +600,12 @@ public class MqttDataPortOutgoing_
             .ContainSingle()
             .Which.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
     }
-
-    [Fact]
-    public void Refuses_to_start_with_an_envelope_configuration_it_cannot_serve()
-    {
-        Node valueNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "value",
-            AffectedChannels = { "v", },
-            TransferredChannels = { "v", "b", },
-            DesignId = MqttNodeDesignId.Topic,
-        };
-        Node childNode = new()
-        {
-            Id = Guid.NewGuid(),
-            ParentId = valueNode.Id,
-            Name = "batchId",
-            AffectedChannels = { "b", },
-            DesignId = MqttNodeDesignId.UserProperty,
-        };
-        MqttDataPortCommunication communication = new()
-        {
-            Nodes = [valueNode, childNode,],
-        };
-        _ = new MqttDataPortProperties(communication)
-        {
-            ProtocolVersion = MqttProtocolVersion.V311,
-        };
-
-        var act = () => new MqttDataPortOutgoing(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        act.Should().Throw<InvalidOperationException>().WithMessage("*MQTT 3.1.1 cannot carry*");
-    }
 }
 
 public class MqttDataPortOutgoing_SendAsync
 {
+    private const string ParentChannel = "t";
+
     [Fact]
     public async Task Publishes_a_plain_data_point_on_the_wire_Async()
     {
@@ -609,5 +661,319 @@ public class MqttDataPortOutgoing_SendAsync
         message.Retain.Should().BeTrue();
         message.ContentType.Should().Be("application/json");
         message.PayloadFormatIndicator.Should().Be(MqttPayloadFormatIndicator.CharacterData);
+    }
+
+    [Fact]
+    public async Task Publishes_the_fixed_children_from_the_parent_value_Async()
+    {
+        var communication = CreateTree(
+            (MqttNodeDesignId.Timestamp, "when", "c1"),
+            (MqttNodeDesignId.Validity, "good", "c2"),
+            (MqttNodeDesignId.UserProperty, "batchId", "c3"));
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(
+            4711,
+            [
+                Value("c3", "B-7"),
+                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
+            ],
+            TestContext.Current.CancellationToken);
+
+        var message = messages.Should().ContainSingle().Which;
+        UserProperties(message).Should().Equal(new Dictionary<string, string>
+        {
+            ["Timestamp"] = "2026-03-04T05:06:07.0000000Z",
+            ["Validity"] = "100",
+            ["batchId"] = "B-7",
+        });
+    }
+
+    /// <summary>
+    /// <c>Timestamp</c> is linkable inbound only, so a value that reaches the child outbound all
+    /// the same is ignored: the message carries the timestamp of the parent value.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_the_timestamp_of_the_parent_value_and_not_one_written_to_the_child_Async()
+    {
+        var communication = CreateTree((MqttNodeDesignId.Timestamp, "when", "c1"));
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(
+            1,
+            [
+                Value("c1", new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc)),
+                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
+            ],
+            TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which)["Timestamp"].Should().Be("2026-03-04T05:06:07.0000000Z");
+    }
+
+    [Fact]
+    public async Task Publishes_the_value_type_when_the_parent_has_a_type_child_Async()
+    {
+        var communication = CreateTypeChildTree();
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string>
+        {
+            [MqttUserProperties.Type] = typeof(int).AssemblyQualifiedName!,
+        });
+    }
+
+    [Fact]
+    public async Task Omits_the_value_type_without_a_type_child_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    private static MqttDataPortCommunication CreateTypeChildTree()
+    {
+        Node parentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "temperature",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { ParentChannel, },
+            TransferredChannels = { ParentChannel, },
+        };
+        Node typeNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = parentNode.Id,
+            Name = "type",
+            DesignId = MqttNodeDesignId.Type,
+        };
+
+        return CreateCommunication([parentNode, typeNode,]);
+    }
+
+    [Fact]
+    public async Task Publishes_one_message_for_a_parent_and_its_child_in_the_same_batch_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
+    }
+
+    [Fact]
+    public async Task Omits_a_child_no_value_was_ever_written_for_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Carries_a_child_value_from_an_earlier_batch_and_publishes_nothing_for_a_child_alone_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        messages.Should().BeEmpty();
+
+        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
+
+        await outgoing.SendAsync(3, [Value("c1", "B-8"),], TestContext.Current.CancellationToken);
+        messages.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Starts_a_new_port_instance_without_the_child_values_of_the_disposed_one_Async()
+    {
+        var communication = CreateTreeWithOneChild();
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using (MqttDataPortOutgoing disposed = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>()))
+        {
+            await disposed.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        }
+
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Holds_an_invalid_child_value_back_until_a_valid_one_replaces_it_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7", validity: 0), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages[0]).Should().BeEmpty();
+
+        await outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages[1]).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-8", });
+    }
+
+    [Fact]
+    public async Task Publishes_a_folder_group_without_an_envelope_Async()
+    {
+        Node folderNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            DesignId = MqttNodeDesignId.Topic,
+            TransferredChannels = { "g", },
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = folderNode.Id,
+            Name = "value",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { "g", },
+        };
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateCommunication([folderNode, valueNode,]), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("g", 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Publishes_the_cycles_in_the_order_they_arrived_Async()
+    {
+        TaskCompletionSource gate = new();
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
+        {
+            messages.Add(call.Arg<MqttApplicationMessage>());
+            return messages.Count == 1 ? gate.Task : Task.CompletedTask;
+        });
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var firstCycle = outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        var secondCycle = outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle("the second cycle must not be processed while the first one is still publishing");
+
+        gate.SetResult();
+        await Task.WhenAll(firstCycle, secondCycle);
+
+        messages.Should().HaveCount(2);
+        SingleUserProperty(messages[0]).Should().Be("B-7");
+        SingleUserProperty(messages[1]).Should().Be("B-8");
+    }
+
+    [Fact]
+    public async Task Carries_a_child_of_one_cycle_on_the_parent_of_the_next_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var childCycle = outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        var parentCycle = outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        await Task.WhenAll(childCycle, parentCycle);
+
+        SingleUserProperty(messages.Should().ContainSingle().Which).Should().Be("B-7");
+    }
+
+    internal static MqttDataPortCommunication CreateTreeWithOneChild()
+        => CreateTree((MqttNodeDesignId.UserProperty, "batchId", "c1"));
+
+    private static MqttDataPortCommunication CreateTree(params (string DesignId, string Name, string Channel)[] children)
+    {
+        Node parentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "temperature",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { ParentChannel, },
+            TransferredChannels = { ParentChannel, },
+        };
+        List<Node> nodes = [parentNode,];
+
+        foreach (var (designId, name, channel) in children)
+        {
+            parentNode.TransferredChannels.Add(channel);
+            nodes.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                ParentId = parentNode.Id,
+                Name = name,
+                DesignId = designId,
+                AffectedChannels = { channel, },
+            });
+        }
+
+        return CreateCommunication([.. nodes,]);
+    }
+
+    private static MqttDataPortCommunication CreateCommunication(Node[] nodes)
+    {
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = nodes,
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+
+        return communication;
+    }
+
+    internal static IVirtualMqttClient CreateRecordingClient(List<MqttApplicationMessage> messages)
+    {
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.When(c => c.Publish(Arg.Any<MqttApplicationMessage>())).Do(call => messages.Add(call.Arg<MqttApplicationMessage>()));
+
+        return client;
+    }
+
+    internal static ExternalValue Value(string channel, object? value, DateTime timestamp = default, int validity = 100)
+        => new()
+        {
+            Channel = channel,
+            Value = value,
+            Validity = validity,
+            Timestamp = timestamp,
+        };
+
+    private static string SingleUserProperty(MqttApplicationMessage message)
+        => Encoding.UTF8.GetString(message.UserProperties.Should().ContainSingle().Which.ValueBuffer.Span);
+
+    private static Dictionary<string, string> UserProperties(MqttApplicationMessage message)
+    {
+        Dictionary<string, string> properties = [];
+
+        foreach (var property in message.UserProperties ?? [])
+            properties.Add(property.Name, Encoding.UTF8.GetString(property.ValueBuffer.Span));
+
+        return properties;
     }
 }
