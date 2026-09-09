@@ -16,6 +16,9 @@
   none of its channels, with a warning, instead of failing the message and raising an empty batch
 - **Breaking:** Publish a payload that cannot be read as an invalid value instead of dropping the
   whole received message
+- Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
+  `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
+  well as from an integer
 ## 1.0.0 - 2026-05-18
 
 No changes

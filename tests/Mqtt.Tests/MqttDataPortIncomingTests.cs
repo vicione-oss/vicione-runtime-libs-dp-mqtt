@@ -510,6 +510,92 @@ public class MqttDataPortIncoming_
             e.Level == LogLevel.Warning && e.Message.Contains("value"));
     }
 
+    /// <summary>
+    /// The port sends the engine validity, another sender may write a boolean instead, and a text
+    /// that is neither leaves the value valid.
+    /// </summary>
+    [Theory]
+    [InlineData("1", 1)]
+    [InlineData("0", 0)]
+    [InlineData("112", 112)]
+    [InlineData("true", 1)]
+    [InlineData("FALSE", 0)]
+    [InlineData("maybe", 1)]
+    public async Task Reads_the_validity_of_a_received_message_Async(string text, int expected)
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, new FakeLogger<MqttDataPortIncoming>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes(text))
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        messages.Should().ContainSingle().Which.Validity.Should().Be(expected);
+    }
+
+    /// <summary>
+    /// A Timestamp that is not a round-trip formatted point in time no longer tears the message
+    /// down; the value carries the time it was received instead.
+    /// </summary>
+    [Fact]
+    public async Task Falls_back_to_the_receive_time_of_an_unreadable_timestamp_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, new FakeLogger<MqttDataPortIncoming>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        var message = new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("the day before"))
+            .Build();
+
+        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+
+        messages.Should().ContainSingle().Which.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+    }
+
     [Fact]
     public async Task Publishes_an_invalid_value_if_the_payload_cannot_be_read_Async()
     {
