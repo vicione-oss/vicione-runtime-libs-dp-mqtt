@@ -103,15 +103,15 @@ include:
       min_core_version_property: "MinCoreVersion"
       rules: *rules_always
       stage: metadata
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-restore@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-restore@v2.7.1
     inputs:
       before_script:
         - *update_nuget_source_ro
       rules: *rules_always
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-build@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-build@v2.7.1
     inputs:
       rules: *rules_only_tags
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-artifacts@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-artifacts@v2.7.1
     inputs:
       name: "dotnet Build+Test"
       stage: test
@@ -122,7 +122,7 @@ include:
       test: true
       test_coverage: true
       test_filter: "/[(Category!=System)&(Category!=Integration)]"
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-pack@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-pack@v2.7.1
     inputs:
       stage: pack
       rules:
@@ -130,15 +130,16 @@ include:
         - *rule_default_branch_manual
         - *rule_mr_manual
         - *rule_web_manual
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-nuget-push@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-nuget-push@v2.7.1
     inputs:
       stage: publish
       rules: *rules_manual
       before_script:
         - *update_nuget_source_rw
-      source: "JFrogViciOne"
+      sources:
+        - "JFrogViciOne"
   # Publish RIDs
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-publish@v2.6.1
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/dotnet-component/dotnet-publish@v2.7.1
     inputs:
       stage: pack
       rules: *rules_manual
