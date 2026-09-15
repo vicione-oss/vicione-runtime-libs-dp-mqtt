@@ -25,6 +25,9 @@
 - Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
   `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
   well as from an integer
+- Forward the `Timestamp` of a received message as the point in time it names, which was moved by
+  the UTC offset of the host whenever the value was published again, and read a `Timestamp` written
+  without a time zone as UTC rather than as the local time of the receiving host
 ## 1.0.0 - 2026-05-18
 
 No changes
