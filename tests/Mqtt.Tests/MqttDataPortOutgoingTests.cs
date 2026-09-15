@@ -5,6 +5,7 @@ using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
@@ -886,6 +887,61 @@ public class MqttDataPortOutgoing_SendAsync
         messages.Should().HaveCount(2);
         SingleUserProperty(messages[0]).Should().Be("B-7");
         SingleUserProperty(messages[1]).Should().Be("B-8");
+    }
+
+    /// <summary>
+    /// The client takes no cancellation token of its own, so a publish that never answers held its
+    /// cycle, and with it every cycle chained behind it, for the life of the port.
+    /// </summary>
+    [Fact]
+    public async Task Gives_up_a_publish_that_never_answers_when_its_cycle_is_cancelled_Async()
+    {
+        using CancellationTokenSource cancellation = new();
+        TaskCompletionSource neverAnswers = new();
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
+        {
+            messages.Add(call.Arg<MqttApplicationMessage>());
+            return messages.Count == 1 ? neverAnswers.Task : Task.CompletedTask;
+        });
+        var communication = CreateTreeWithOneChild();
+        communication.Host = "local";
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var stuckCycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
+        var nextCycle = outgoing.SendAsync(2, [Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+
+        stuckCycle.IsCompleted.Should().BeFalse();
+
+        await cancellation.CancelAsync();
+        await stuckCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await nextCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        messages.Should().HaveCount(2, "a cancelled cycle must not hold up the one chained behind it");
+    }
+
+    /// <summary>
+    /// Cancelling a cycle is how the engine stops the port, so it must not reach the log as a
+    /// failure to send. Nothing was cancellable before the token was honoured at the publish.
+    /// </summary>
+    [Fact]
+    public async Task Does_not_report_a_cancelled_cycle_as_a_failure_Async()
+    {
+        using CancellationTokenSource cancellation = new();
+        TaskCompletionSource neverAnswers = new();
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(neverAnswers.Task);
+        var communication = CreateTreeWithOneChild();
+        communication.Host = "local";
+        FakeLogger<MqttDataPortOutgoing> logger = new();
+        using MqttDataPortOutgoing outgoing = new(communication, client, logger);
+
+        var cycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
+        await cancellation.CancelAsync();
+        await cycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        logger.Collector.GetSnapshot().Should().NotContain(e => e.Level >= LogLevel.Error);
     }
 
     [Fact]

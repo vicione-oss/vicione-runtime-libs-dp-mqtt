@@ -170,8 +170,19 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
         return builder;
     }
 
+    /// <summary>
+    /// The client takes no cancellation token of its own, so the cycle's token is observed here: no
+    /// further message is handed to it once the cycle is cancelled, and one it has already taken but
+    /// never answers is given up on rather than holding the cycle, and every cycle chained behind
+    /// it, for the life of the port. The message given up on may still reach the broker; what ends
+    /// is this port's wait for it.
+    /// </summary>
     protected override async Task SendValue(MqttApplicationMessageBuilder value, CancellationToken cancellationToken)
-        => await _client.Publish(value.Build());
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await _client.Publish(value.Build()).WaitAsync(cancellationToken);
+    }
 
     private static string GenerateTopic(IEnumerable<INode> nodes)
         => nodes

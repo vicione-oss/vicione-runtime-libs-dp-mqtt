@@ -45,6 +45,10 @@ public sealed class MqttDataPortOutgoing : IExternalOutgoingCommunication<MqttDa
         {
             await _mqttTreeHandlerOutgoing.Send(values, cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The engine cancels a cycle to stop the port, which is not a failure to send.
+        }
         catch (Exception ex)
         {
             _logger.LogSendFailed(_communication.GetName(), ex);

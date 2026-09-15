@@ -6,6 +6,7 @@
 
 - Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
   `Validity` and `Type` children that travel in the user properties of its message
+
 ### Changed
 
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
@@ -28,6 +29,10 @@
 - Forward the `Timestamp` of a received message as the point in time it names, which was moved by
   the UTC offset of the host whenever the value was published again, and read a `Timestamp` written
   without a time zone as UTC rather than as the local time of the receiving host
+- Honour the cancellation of a send cycle, which was carried all the way to the publish and then
+  ignored: no further message is published once the cycle is cancelled, and one the broker never
+  answers is given up on instead of holding the port
+
 ## 1.0.0 - 2026-05-18
 
 No changes
