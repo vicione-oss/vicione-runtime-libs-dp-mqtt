@@ -33,16 +33,19 @@ internal static class MqttSetup
             CertificatePrivateKeyFile = properties.CertificatePrivateKeyFile,
             CertificateAuthorityFile = properties.DisableCertificateValidation is true ? null : properties.CertificateAuthorityFile,
             DisableCertificateValidation = properties.DisableCertificateValidation,
-            WillTopic = properties.WillTopic,
-            WillMessage = properties.WillMessage,
-            WillContentType = MediaTypeNames.Text.Plain,
-            WillQualityOfService = properties.QualityOfService,
-            WillRetain = properties.WillRetain,
             MaxPendingMessages = properties.MaxPendingMessages,
             BrokerReceiveMaximum = properties.BrokerReceiveMaximum,
         };
         if (properties.ProtocolVersion == MqttProtocolVersion.V500)
             communicationInfo.ClientReceiveMaximum = properties.ClientReceiveMaximum;
+        if (properties.LastWillEnabled == true)
+        {
+            communicationInfo.WillTopic = properties.WillTopic;
+            communicationInfo.WillMessage = properties.WillMessage;
+            communicationInfo.WillContentType = MediaTypeNames.Text.Plain;
+            communicationInfo.WillRetain = properties.WillRetain;
+            communicationInfo.WillQualityOfService = properties.WillQualityOfService;
+        }
         switch (properties.Protocol)
         {
             case MqttProtocol.Tcp:

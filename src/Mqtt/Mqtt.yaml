@@ -60,9 +60,11 @@ Nodes:
           - Id             : ClientReceiveMaximum
       - Id                 : LastWill
         Properties         :
+          - Id             : LastWillEnabled
           - Id             : WillTopic
           - Id             : WillMessage
           - Id             : WillRetain
+          - Id             : WillQualityOfService
       - Id                 : Certificate
         Properties         :
           - Id             : SslProtocol
@@ -338,6 +340,17 @@ Properties:
     DataType    : String
     UiControl   : TextBox
 
+  - Id                 : LastWillEnabled
+    Name               : "Last will enabled"
+    Description        : "Publish a last will message when the connection is lost unexpectedly."
+    DataType           : Bool
+    DefaultValue       : false
+    UiControl          : CheckBox
+    DependentProperties: { 'WillTopic'           : [true],
+                           'WillMessage'         : [true],
+                           'WillRetain'          : [true],
+                           'WillQualityOfService': [true] }
+
   - Id          : WillTopic
     Name        : "Will topic"
     Description : "The topic the will message is published to when the connection is lost. The will is only sent when a message is configured as well."
@@ -360,6 +373,18 @@ Properties:
     DataType    : Bool
     DefaultValue: false
     UiControl   : CheckBox
+
+  - Id          : WillQualityOfService
+    Name        : "Will quality of service"
+    Description : "Delivery guarantee for the last will message."
+    DataType    : UInt8
+    DefaultValue: 0
+    UiControl   : NumericListBox
+    MinValue    : 0
+    MaxValue    : 2
+    Elements    : { 0: 'At most once',
+                    1: 'At least once',
+                    2: 'Exactly once' }
 
   - Id                 : Protocol
     Name               : "Protocol"
@@ -406,7 +431,7 @@ Properties:
 
   - Id          : QualityOfService
     Name        : "Quality of service"
-    Description : "The delivery guarantee used for published messages and for the will message."
+    Description : "The delivery guarantee used for published messages."
     DataType    : UInt8
     DefaultValue: 0
     UiControl   : NumericListBox

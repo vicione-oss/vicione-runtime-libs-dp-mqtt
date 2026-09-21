@@ -24,9 +24,11 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
     public bool? DisableCertificateValidation { get; set; }
     public bool? CleanSession { get; set; }
     public uint? SessionExpiryInterval { get; set; }
+    public bool? LastWillEnabled { get; set; }
     public string? WillTopic { get; set; }
     public string? WillMessage { get; set; }
     public bool? WillRetain { get; set; }
+    public byte? WillQualityOfService { get; set; }
     public bool Pooling { get; set; }
     public int? MaxPendingMessages { get; set; }
     public byte? DefaultSerializer { get; set; }
@@ -59,9 +61,11 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
         builder.Append(", DisableCertificateValidation = ").Append(DisableCertificateValidation);
         builder.Append(", CleanSession = ").Append(CleanSession);
         builder.Append(", SessionExpiryInterval = ").Append(SessionExpiryInterval);
+        builder.Append(", LastWillEnabled = ").Append(LastWillEnabled);
         builder.Append(", WillTopic = ").Append(WillTopic);
         builder.Append(", WillMessage = ").Append(WillMessage);
         builder.Append(", WillRetain = ").Append(WillRetain);
+        builder.Append(", WillQualityOfService = ").Append(WillQualityOfService);
         builder.Append(", Pooling = ").Append(Pooling);
         builder.Append(", MaxPendingMessages = ").Append(MaxPendingMessages);
         builder.Append(", DefaultSerializer = ").Append(DefaultSerializer);

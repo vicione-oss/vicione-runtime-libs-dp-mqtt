@@ -32,10 +32,11 @@ public class MqttSetup_ToCommunicationInfo
         _ = new MqttDataPortProperties(communication)
         {
             Host = "localhost",
-            QualityOfService = MqttQualityOfServiceLevel.ExactlyOnce,
+            LastWillEnabled = true,
             WillTopic = "app/life",
             WillMessage = "dead",
             WillRetain = true,
+            WillQualityOfService = MqttQualityOfServiceLevel.ExactlyOnce,
         };
 
         var communicationInfo = communication.ToCommunicationInfo();
@@ -45,6 +46,31 @@ public class MqttSetup_ToCommunicationInfo
         communicationInfo.WillContentType.Should().Be(MediaTypeNames.Text.Plain);
         communicationInfo.WillQualityOfService.Should().Be(MqttQualityOfServiceLevel.ExactlyOnce);
         communicationInfo.WillRetain.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(null)]
+    public void Omits_last_will_when_disabled(bool? lastWillEnabled)
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            LastWillEnabled = lastWillEnabled,
+            WillTopic = "app/life",
+            WillMessage = "dead",
+            WillRetain = true,
+            WillQualityOfService = MqttQualityOfServiceLevel.ExactlyOnce,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.WillTopic.Should().BeNull();
+        communicationInfo.WillMessage.Should().BeNull();
+        communicationInfo.WillContentType.Should().BeNull();
+        communicationInfo.WillRetain.Should().BeNull();
+        communicationInfo.WillQualityOfService.Should().Be(MqttQualityOfServiceLevel.AtMostOnce);
     }
 
     [Fact]
@@ -83,13 +109,15 @@ public class MqttSetup_ToCommunicationInfo
     }
 
     [Fact]
-    public void Configures_quality_of_server()
+    public void Does_not_reuse_the_data_quality_of_service_for_the_will()
     {
         MqttDataPortCommunication communication = new();
         _ = new MqttDataPortProperties(communication)
         {
             Host = "localhost",
-            QualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
+            LastWillEnabled = true,
+            QualityOfService = MqttQualityOfServiceLevel.ExactlyOnce,
+            WillQualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
         };
 
         var communicationInfo = communication.ToCommunicationInfo();

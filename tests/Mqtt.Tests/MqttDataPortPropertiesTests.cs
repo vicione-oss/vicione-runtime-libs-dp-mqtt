@@ -471,6 +471,47 @@ public class MqttDataPortProperties_QualityOfService
     };
 }
 
+public class MqttDataPortProperties_WillQualityOfService
+{
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Getter_returns_value(byte? communicationValue, MqttQualityOfServiceLevel propertyValue)
+    {
+        MqttDataPortProperties properties = new(new() { WillQualityOfService = communicationValue, });
+
+        properties.WillQualityOfService.Should().Be(propertyValue);
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Setter_sets_value(byte? communicationValue, MqttQualityOfServiceLevel propertyValue)
+    {
+        MqttDataPortCommunication communication = new();
+
+        _ = new MqttDataPortProperties(communication)
+        {
+            WillQualityOfService = propertyValue,
+        };
+
+        communication.WillQualityOfService.Should().Be(communicationValue);
+    }
+
+    [Fact]
+    public void Returns_at_most_once_if_missing()
+    {
+        MqttDataPortProperties properties = new(new() { WillQualityOfService = null, });
+
+        properties.WillQualityOfService.Should().Be(MqttQualityOfServiceLevel.AtMostOnce);
+    }
+
+    public static TheoryData<byte?, MqttQualityOfServiceLevel> Conversion() => new()
+    {
+        { 0, MqttQualityOfServiceLevel.AtMostOnce },
+        { 1, MqttQualityOfServiceLevel.AtLeastOnce },
+        { 2, MqttQualityOfServiceLevel.ExactlyOnce },
+    };
+}
+
 public class MqttDataPortProperties_ProtocolVersion
 {
     [Fact]
@@ -749,6 +790,47 @@ public class MqttDataPortProperties_SslProtocol
         { 2, SslProtocols.Tls13 },
     };
 #pragma warning restore CA5398 // The TLS versions the ruleset offers
+}
+
+public class MqttDataPortProperties_LastWillEnabled
+{
+    [Fact]
+    public void Returns_null_if_missing()
+    {
+        MqttDataPortProperties properties = new(new());
+
+        properties.LastWillEnabled.Should().BeNull();
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Getter_returns_value(bool? value)
+    {
+        MqttDataPortProperties properties = new(new() { LastWillEnabled = value, });
+
+        properties.LastWillEnabled.Should().Be(value);
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Setter_sets_value(bool? value)
+    {
+        MqttDataPortCommunication communication = new();
+
+        _ = new MqttDataPortProperties(communication)
+        {
+            LastWillEnabled = value,
+        };
+
+        communication.LastWillEnabled.Should().Be(value);
+    }
+
+    public static TheoryData<bool?> Conversion() => new()
+    {
+        { null! },
+        { false },
+        { true },
+    };
 }
 
 public class MqttDataPortProperties_DisableCertificateValidation

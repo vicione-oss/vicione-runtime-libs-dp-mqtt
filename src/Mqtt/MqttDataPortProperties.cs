@@ -142,6 +142,12 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
         get => communication.SessionExpiryInterval;
         set => communication.SessionExpiryInterval = value;
     }
+    internal bool? LastWillEnabled
+    {
+        get => communication.LastWillEnabled;
+        set => communication.LastWillEnabled = value;
+    }
+
     internal string? WillTopic
     {
         get => communication.WillTopic;
@@ -158,6 +164,12 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
     {
         get => communication.WillRetain;
         set => communication.WillRetain = value;
+    }
+
+    internal MqttQualityOfServiceLevel WillQualityOfService
+    {
+        get => (MqttQualityOfServiceLevel)(communication.WillQualityOfService ?? 0);
+        set => communication.WillQualityOfService = (byte)value;
     }
 
     internal int? MaxPendingMessages

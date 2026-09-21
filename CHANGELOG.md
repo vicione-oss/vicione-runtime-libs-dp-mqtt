@@ -11,9 +11,12 @@
   to disable the certificate validation. A self-signed broker certificate configured there anchors on
   itself, which trusts that one broker and nothing else
 - Add the `ClientReceiveMaximum` option to the MQTT DataPort (MQTT v5.0 only; ignored on v3.1.1)
+- Add the `WillQualityOfService` option to the MQTT DataPort
+- Add the `LastWillEnabled` option to the MQTT DataPort
 
 ### Changed
 
+- **Breaking**: the MQTT last will is only published when `LastWillEnabled` is set; existing configurations must enable it explicitly
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `2.0.0`
@@ -58,6 +61,7 @@
 - Log the warnings about insecure connection settings for an unpooled MQTT client too, where they
   were dropped
 - Correct the description of `BrokerReceiveMaximum` in the MQTT DataPort
+- The MQTT last will no longer reuses the quality of service configured for data
 
 ## 1.0.0 - 2026-05-18
 
