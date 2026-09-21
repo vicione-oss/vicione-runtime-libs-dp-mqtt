@@ -916,6 +916,15 @@ public class MqttDataPortProperties_DefaultSerializer
             .WithMessage("*serializer*'0'*not*supported*");
     }
 
+    [Fact]
+    public void Setter_throws_for_the_inherited_serializer()
+    {
+        MqttDataPortProperties properties = new(new());
+
+        FluentActions.Invoking(() => properties.DefaultSerializer = Serializer.Inherited).Should().Throw<NotSupportedException>()
+            .WithMessage("*DefaultSerializer*Inherited*not*supported*");
+    }
+
     public static TheoryData<byte?, Serializer> Conversion() => new()
     {
         { 1, Serializer.Json },

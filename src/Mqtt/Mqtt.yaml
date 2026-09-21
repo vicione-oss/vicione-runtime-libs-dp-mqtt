@@ -70,7 +70,7 @@ Nodes:
           - Id             : CertificatePrivateKeyFile
           - Id             : CertificateAuthorityFile
           - Id             : DisableCertificateValidation
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : QualityOfService
             Required       : true
@@ -122,7 +122,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -149,7 +149,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -176,7 +176,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -203,7 +203,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -230,7 +230,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -257,7 +257,7 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
@@ -326,9 +326,9 @@ PropertyCategories:
     Name        : "Last will"
     Description : "Last Will properties"
 
-  - Id          : Other
-    Name        : "Other"
-    Description : "Other properties"
+  - Id          : Messaging
+    Name        : "Messaging"
+    Description : "Messaging properties"
 
 Properties:
   - Id          : ClientId
@@ -394,7 +394,7 @@ Properties:
     DefaultValue: 1883
 
   - Id          : Url
-    Name        : "Url"
+    Name        : "URL"
     Description : "The broker url for WebSocket. Only 'ws' and 'wss' are supported, of which 'wss' is encrypted. Required for the WebSocket protocol."
     DataType    : Uri
     UiControl   : TextBox
@@ -471,7 +471,7 @@ Properties:
     UiControl   : NumericListBox
     MinValue    : 0
     MaxValue    : 2
-    Elements    : { 0: 'None',
+    Elements    : { 0: 'No TLS (plaintext)',
                     1: 'TLSv1.2',
                     2: 'TLSv1.3' }
 
@@ -544,7 +544,7 @@ Properties:
 
   - Id          : BrokerReceiveMaximum
     Name        : "Broker receive maximum"
-    Description : "The messages published without waiting for their acknowledgement. An MQTT 5.0 broker may lower it further."
+    Description : "Maximum number of QoS 1 and QoS 2 messages the broker may have in flight unacknowledged (MQTT v5 Receive Maximum). The client library refuses more than 100."
     DataType    : UInt16
     DefaultValue: 100
     UiControl   : NumericUpDown

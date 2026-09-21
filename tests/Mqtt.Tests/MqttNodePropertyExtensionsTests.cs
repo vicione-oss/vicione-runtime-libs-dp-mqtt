@@ -25,12 +25,12 @@ public class MqttNodePropertyExtensions_GetSerializer
     }
 
     [Fact]
-    public void Should_return_serializer_JSON_by_default()
+    public void Should_inherit_by_default()
     {
         Node node = new();
 
         var result = node.GetSerializer();
 
-        result.Should().Be(Serializer.Json);
+        result.Should().Be(Serializer.Inherited);
     }
 }

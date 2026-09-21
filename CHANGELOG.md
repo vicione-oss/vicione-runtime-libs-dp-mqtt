@@ -38,6 +38,8 @@
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
   subtype the sender names in `Type`, so a publisher can no longer decide which type the port loads
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
+- Clarify the property names and descriptions of the MQTT DataPort
+- Rename the MQTT DataPort property category `Other` to `Messaging`
 
 ### Fixed
 
@@ -54,6 +56,7 @@
   communication, which exposed them to every log sink
 - Log the warnings about insecure connection settings for an unpooled MQTT client too, where they
   were dropped
+- Correct the description of `BrokerReceiveMaximum` in the MQTT DataPort
 
 ## 1.0.0 - 2026-05-18
 

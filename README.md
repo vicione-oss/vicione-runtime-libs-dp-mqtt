@@ -5,7 +5,7 @@
 | Name       | Incoming | Outgoing | Typ    | Values                                                |
 |------------|:--------:|:--------:|--------|-------------------------------------------------------|
 | Retain     |    ❌    |    ✔️    | `bool` | `true`/`false`                                        |
-| Serializer |    ✔️    |    ✔️    | `byte` | `0`=Inherit from parent node, `1`=JSON, `2`=PlainText |
+| Serializer |    ✔️    |    ✔️    | `byte` | `0`=Inherit from broker, `1`=JSON, `2`=PlainText |
 
 ## Envelope children
 

@@ -18,6 +18,6 @@ internal static class MqttNodePropertyExtensions
             };
         }
 
-        return Serializer.Json;
+        return Serializer.Inherited;
     }
 }
