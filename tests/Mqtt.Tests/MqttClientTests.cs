@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Security.Authentication;
 using System.Threading.Tasks;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ public class MqttClient_Connect
         _ = new MqttDataPortProperties(communication)
         {
             Host = "localhost",
+            TlsMode = SslProtocols.None,
             Username = "user",
             Password = "s3cret",
         };

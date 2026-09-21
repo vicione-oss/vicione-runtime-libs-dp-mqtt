@@ -726,38 +726,38 @@ public class MqttDataPortProperties_CertificateAuthorityFile
     };
 }
 
-public class MqttDataPortProperties_SslProtocol
+public class MqttDataPortProperties_TlsMode
 {
     [Theory]
     [MemberData(nameof(Conversion))]
-    public void Getter_returns_value(byte? communicationValue, SslProtocols? value)
+    public void Getter_returns_value(byte? communicationValue, SslProtocols value)
     {
-        MqttDataPortProperties properties = new(new() { SslProtocol = communicationValue, });
+        MqttDataPortProperties properties = new(new() { TlsMode = communicationValue, });
 
-        properties.SslProtocol.Should().Be(value);
+        properties.TlsMode.Should().Be(value);
     }
 
     [Fact]
     public void Getter_throws_for_unsupported_value()
     {
-        MqttDataPortProperties properties = new(new() { SslProtocol = 3, });
+        MqttDataPortProperties properties = new(new() { TlsMode = 4, });
 
-        FluentActions.Invoking(() => properties.SslProtocol).Should().Throw<NotSupportedException>()
-            .WithMessage("*SslProtocol*'3'*not*supported*");
+        FluentActions.Invoking(() => properties.TlsMode).Should().Throw<NotSupportedException>()
+            .WithMessage("*TlsMode*'4'*not*supported*");
     }
 
     [Theory]
     [MemberData(nameof(Conversion))]
-    public void Setter_sets_value(byte? communicationValue, SslProtocols? value)
+    public void Setter_sets_value(byte? communicationValue, SslProtocols value)
     {
         MqttDataPortCommunication communication = new();
 
         _ = new MqttDataPortProperties(communication)
         {
-            SslProtocol = value,
+            TlsMode = value,
         };
 
-        communication.SslProtocol.Should().Be(communicationValue);
+        communication.TlsMode.Should().Be(communicationValue);
     }
 
     [Fact]
@@ -767,27 +767,28 @@ public class MqttDataPortProperties_SslProtocol
 
 #pragma warning disable SYSLIB0039 // The obsolete TLS version is the rejected input
 #pragma warning disable CA5397 // The obsolete TLS version is the rejected input
-        FluentActions.Invoking(() => properties.SslProtocol = SslProtocols.Tls).Should().Throw<NotSupportedException>()
-            .WithMessage("*SslProtocol*'Tls'*not*supported*");
+        FluentActions.Invoking(() => properties.TlsMode = SslProtocols.Tls).Should().Throw<NotSupportedException>()
+            .WithMessage("*TlsMode*'Tls'*not*supported*");
 #pragma warning restore CA5397 // The obsolete TLS version is the rejected input
 #pragma warning restore SYSLIB0039 // The obsolete TLS version is the rejected input
     }
 
+#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
     [Fact]
-    public void Returns_null_if_missing()
+    public void Requires_TLS_if_missing()
     {
         MqttDataPortProperties properties = new(new());
 
-        properties.SslProtocol.Should().BeNull();
+        properties.TlsMode.Should().Be(SslProtocols.Tls12 | SslProtocols.Tls13);
     }
 
 #pragma warning disable CA5398 // The TLS versions the ruleset offers
-    public static TheoryData<byte?, SslProtocols?> Conversion() => new()
+    public static TheoryData<byte?, SslProtocols> Conversion() => new()
     {
-        { null, null },
         { 0, SslProtocols.None },
-        { 1, SslProtocols.Tls12 },
-        { 2, SslProtocols.Tls13 },
+        { 1, SslProtocols.Tls12 | SslProtocols.Tls13 },
+        { 2, SslProtocols.Tls12 },
+        { 3, SslProtocols.Tls13 },
     };
 #pragma warning restore CA5398 // The TLS versions the ruleset offers
 }
@@ -833,23 +834,23 @@ public class MqttDataPortProperties_LastWillEnabled
     };
 }
 
-public class MqttDataPortProperties_DisableCertificateValidation
+public class MqttDataPortProperties_ValidateCertificateChain
 {
     [Fact]
     public void Returns_null_if_missing()
     {
         MqttDataPortProperties properties = new(new());
 
-        properties.DisableCertificateValidation.Should().BeNull();
+        properties.ValidateCertificateChain.Should().BeNull();
     }
 
     [Theory]
     [MemberData(nameof(Conversion))]
     public void Getter_returns_value(bool? value)
     {
-        MqttDataPortProperties properties = new(new() { DisableCertificateValidation = value, });
+        MqttDataPortProperties properties = new(new() { ValidateCertificateChain = value, });
 
-        properties.DisableCertificateValidation.Should().Be(value);
+        properties.ValidateCertificateChain.Should().Be(value);
     }
 
     [Theory]
@@ -860,10 +861,10 @@ public class MqttDataPortProperties_DisableCertificateValidation
 
         _ = new MqttDataPortProperties(communication)
         {
-            DisableCertificateValidation = value,
+            ValidateCertificateChain = value,
         };
 
-        communication.DisableCertificateValidation.Should().Be(value);
+        communication.ValidateCertificateChain.Should().Be(value);
     }
 
     public static TheoryData<bool?> Conversion() => new()

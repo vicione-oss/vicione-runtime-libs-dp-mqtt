@@ -67,12 +67,12 @@ Nodes:
           - Id             : WillQualityOfService
       - Id                 : Certificate
         Properties         :
-          - Id             : SslProtocol
+          - Id             : TlsMode
           - Id             : CertificateFile
           - Id             : CertificateFilePassword
           - Id             : CertificatePrivateKeyFile
           - Id             : CertificateAuthorityFile
-          - Id             : DisableCertificateValidation
+          - Id             : ValidateCertificateChain
       - Id                 : Messaging
         Properties         :
           - Id             : QualityOfService
@@ -405,7 +405,7 @@ Properties:
     DependentProperties: { 'Host'       : [0],
                            'Port'       : [0],
                            'Url'        : [1],
-                           'SslProtocol': [0] }
+                           'TlsMode'    : [0] }
 
   - Id          : Host
     Name        : "Host"
@@ -423,7 +423,7 @@ Properties:
     DataType    : UInt16
     UiControl   : NumericUpDown
     MinValue    : 1
-    DefaultValue: 1883
+    DefaultValue: 8883
 
   - Id          : Url
     Name        : "URL"
@@ -495,25 +495,26 @@ Properties:
     DataType    : String
     UiControl   : TextBox
 
-  - Id          : SslProtocol
-    Name        : "SSL protocol"
-    Description : "The TLS version enforced for a TCP connection. 'None' does not mean the version of the system, it means that this setting does not encrypt the connection; once a certificate encrypts it, leaving 'None' negotiates TLS 1.2 or 1.3."
-    DataType    : UInt8
-    DefaultValue: 0
-    UiControl   : NumericListBox
-    MinValue    : 0
-    MaxValue    : 2
-    Elements    : { 0: 'No TLS (plaintext)',
-                    1: 'TLSv1.2',
-                    2: 'TLSv1.3' }
+  - Id                 : TlsMode
+    Name               : "TLS"
+    Description        : "Transport encryption for a TCP connection. Selecting 'No TLS' also requires setting the port back to 1883."
+    DataType           : UInt8
+    DefaultValue       : 1
+    UiControl          : NumericListBox
+    MinValue           : 0
+    MaxValue           : 3
+    Elements           : { 0: 'No TLS (plaintext)',
+                           1: 'Automatic (TLS 1.2 or 1.3)',
+                           2: 'TLS 1.2 only',
+                           3: 'TLS 1.3 only' }
 
-  - Id                 : DisableCertificateValidation
-    Name               : "Disable certificate validation"
-    Description        : "Accept any broker certificate. It contradicts the certificate authority file, which validates the broker."
+  - Id                 : ValidateCertificateChain
+    Name               : "Validate certificate chain"
+    Description        : "Check the broker certificate against the trust store. Turning this off keeps the connection encrypted but leaves the broker unauthenticated - use only for lab or migration setups."
     DataType           : Bool
-    DefaultValue       : false
+    DefaultValue       : true
     UiControl          : CheckBox
-    DependentProperties: { 'CertificateAuthorityFile': [false] }
+    DependentProperties: { 'CertificateAuthorityFile': [true] }
 
   - Id          : CleanSession
     Name        : "Clean session"

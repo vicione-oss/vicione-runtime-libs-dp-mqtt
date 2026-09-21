@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Mime;
+using System.Security.Authentication;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Extensions;
 using MQTTnet.Formatter;
@@ -8,13 +9,34 @@ namespace ViciOne.Suite.DataPort;
 
 internal static class MqttSetup
 {
+    private const int PlaintextPort = 1883;
+    private const int TlsPort = 8883;
+
     internal static IVirtualMqttClient CreateClient(this MqttDataPortCommunication communication, ILoggerFactory loggerFactory)
     {
+        communication.WarnAboutAPortThatContradictsTheTlsMode(loggerFactory.CreateLogger(typeof(MqttSetup)));
         var communicationInfo = communication.ToCommunicationInfo();
 
         if (communication.Pooling)
             return MqttOptimizer.Instance.Register(communicationInfo, loggerFactory);
         return MqttClient.Create(communicationInfo, loggerFactory);
+    }
+
+    /// <summary>
+    /// A broker configured before TLS became the default keeps its plain MQTT port while it now asks
+    /// for TLS, and the connection then fails with nothing but a handshake error.
+    /// </summary>
+    internal static void WarnAboutAPortThatContradictsTheTlsMode(this MqttDataPortCommunication communication, ILogger logger)
+    {
+        MqttDataPortProperties properties = new(communication);
+        if (properties.Protocol != MqttProtocol.Tcp)
+            return;
+
+        var usesTls = properties.TlsMode != SslProtocols.None;
+        if (usesTls && properties.Port == PlaintextPort)
+            logger.LogTlsOnPlaintextPort(PlaintextPort);
+        else if (!usesTls && properties.Port == TlsPort)
+            logger.LogPlaintextOnTlsPort(TlsPort);
     }
 
     internal static CommunicationInfo ToCommunicationInfo(this MqttDataPortCommunication communication, Action<CommunicationInfo>? configure = null)
@@ -31,8 +53,8 @@ internal static class MqttSetup
             CertificateFile = properties.CertificateFile,
             CertificateFilePassword = properties.CertificateFilePassword,
             CertificatePrivateKeyFile = properties.CertificatePrivateKeyFile,
-            CertificateAuthorityFile = properties.DisableCertificateValidation is true ? null : properties.CertificateAuthorityFile,
-            DisableCertificateValidation = properties.DisableCertificateValidation,
+            CertificateAuthorityFile = properties.ValidateCertificateChain is false ? null : properties.CertificateAuthorityFile,
+            DisableCertificateValidation = properties.ValidateCertificateChain is false,
             MaxPendingMessages = properties.MaxPendingMessages,
             BrokerReceiveMaximum = properties.BrokerReceiveMaximum,
         };
@@ -51,7 +73,7 @@ internal static class MqttSetup
             case MqttProtocol.Tcp:
                 communicationInfo.TcpHost = properties.Host;
                 communicationInfo.TcpPort = properties.Port;
-                communicationInfo.SslProtocol = properties.SslProtocol;
+                communicationInfo.SslProtocol = properties.TlsMode;
                 break;
             case MqttProtocol.WebSocket:
                 communicationInfo.WebSocketUri = properties.Url;

@@ -257,7 +257,7 @@ public class YamlTests
             .Single(p => p.Id == "Protocol")
             .DependentProperties;
 
-        dependentProperties["SslProtocol"].Should().Equal(["0"]);
+        dependentProperties["TlsMode"].Should().Equal(["0"]);
         dependentProperties["Url"].Should().Equal(["1"]);
     }
 
@@ -292,11 +292,11 @@ public class YamlTests
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
 
         var dependentProperties = metadata.PropertyTypes
-            .Single(p => p.Id == "DisableCertificateValidation")
+            .Single(p => p.Id == "ValidateCertificateChain")
             .DependentProperties;
 
         dependentProperties.Should().ContainKey("CertificateAuthorityFile");
-        dependentProperties["CertificateAuthorityFile"].Should().Equal(["false"]);
+        dependentProperties["CertificateAuthorityFile"].Should().Equal(["true"]);
     }
 
     private static bool Validate(string propertyId, string value)

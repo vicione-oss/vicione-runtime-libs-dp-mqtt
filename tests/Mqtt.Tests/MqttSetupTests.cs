@@ -2,6 +2,8 @@
 using System.Net.Mime;
 using System.Security.Authentication;
 using AwesomeAssertions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using Xunit;
@@ -181,7 +183,7 @@ public class MqttSetup_ToCommunicationInfo
         _ = new MqttDataPortProperties(communication)
         {
             Host = "localhost",
-            DisableCertificateValidation = true,
+            ValidateCertificateChain = false,
             CertificateAuthorityFile = TestCertificates.CertificateAuthorityPem,
         };
 
@@ -200,7 +202,7 @@ public class MqttSetup_ToCommunicationInfo
         {
             Protocol = MqttProtocol.Tcp,
             Host = "localhost",
-            SslProtocol = SslProtocols.Tls13,
+            TlsMode = SslProtocols.Tls13,
         };
 
         var communicationInfo = communication.ToCommunicationInfo();
@@ -216,7 +218,7 @@ public class MqttSetup_ToCommunicationInfo
         {
             Protocol = MqttProtocol.WebSocket,
             Url = new Uri("ws://localhost:8000/exchange"),
-            SslProtocol = SslProtocols.Tls13,
+            TlsMode = SslProtocols.Tls13,
         };
 
         var communicationInfo = communication.ToCommunicationInfo();
@@ -293,5 +295,155 @@ public class MqttSetup_ToCommunicationInfo
         var communicationInfo = communication.ToCommunicationInfo();
 
         communicationInfo.ClientReceiveMaximum.Should().BeNull();
+    }
+
+    [Fact]
+    public void Passes_the_certificate_of_a_web_socket_connection_whatever_the_TLS_mode()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.WebSocket,
+            Url = new Uri("wss://localhost:8000/exchange"),
+            TlsMode = SslProtocols.None,
+            CertificateFile = "broker.pfx",
+            CertificateFilePassword = "secret",
+            CertificatePrivateKeyFile = "broker.key",
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.CertificateFile.Should().Be("broker.pfx");
+        communicationInfo.CertificateFilePassword.Should().Be("secret");
+        communicationInfo.CertificatePrivateKeyFile.Should().Be("broker.key");
+        communicationInfo.SslProtocol.Should().BeNull();
+    }
+
+#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+    [Fact]
+    public void Requires_TLS_when_the_mode_is_unset()
+    {
+        MqttDataPortCommunication communication = new()
+        {
+            Host = "localhost",
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().Be(SslProtocols.Tls12 | SslProtocols.Tls13);
+    }
+
+    [Fact]
+    public void Configures_both_TLS_versions_for_the_automatic_mode()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            TlsMode = SslProtocols.Tls12 | SslProtocols.Tls13,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().Be(SslProtocols.Tls12 | SslProtocols.Tls13);
+    }
+#pragma warning restore CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+
+    [Fact]
+    public void Configures_no_TLS_for_the_plaintext_mode()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            TlsMode = SslProtocols.None,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().Be(SslProtocols.None);
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Configures_certificate_validation(bool? validateCertificateChain, bool disableCertificateValidation)
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            ValidateCertificateChain = validateCertificateChain,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.DisableCertificateValidation.Should().Be(disableCertificateValidation);
+    }
+}
+
+public class MqttSetup_WarnAboutAPortThatContradictsTheTlsMode
+{
+#pragma warning disable CA5398 // The TLS versions the ruleset offers
+    [Theory]
+    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, 1883, "*TLS is configured*1883*")]
+    [InlineData(SslProtocols.Tls13, 1883, "*TLS is configured*1883*")]
+    [InlineData(SslProtocols.None, 8883, "*No TLS*8883*")]
+    public void Warns_about_a_port_that_contradicts_the_TLS_mode(SslProtocols tlsMode, int port, string message)
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = "localhost",
+            Port = port,
+            TlsMode = tlsMode,
+        };
+        FakeLogger logger = new();
+
+        communication.WarnAboutAPortThatContradictsTheTlsMode(logger);
+
+        logger.Collector.Count.Should().Be(1);
+        logger.LatestRecord.Level.Should().Be(LogLevel.Warning);
+        logger.LatestRecord.Message.Should().MatchEquivalentOf(message);
+    }
+
+    [Theory]
+    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, 8883)]
+    [InlineData(SslProtocols.None, 1883)]
+    [InlineData(SslProtocols.Tls12 | SslProtocols.Tls13, 9000)]
+    public void Stays_silent_for_a_port_that_fits_the_TLS_mode(SslProtocols tlsMode, int port)
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = "localhost",
+            Port = port,
+            TlsMode = tlsMode,
+        };
+        FakeLogger logger = new();
+
+        communication.WarnAboutAPortThatContradictsTheTlsMode(logger);
+
+        logger.Collector.Count.Should().Be(0);
+    }
+#pragma warning restore CA5398 // The TLS versions the ruleset offers
+
+    [Fact]
+    public void Stays_silent_for_a_web_socket_connection()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.WebSocket,
+            Url = new Uri("ws://localhost:8883/mqtt"),
+        };
+        FakeLogger logger = new();
+
+        communication.WarnAboutAPortThatContradictsTheTlsMode(logger);
+
+        logger.Collector.Count.Should().Be(0);
     }
 }

@@ -104,31 +104,32 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
     }
 
 #pragma warning disable CA5398 // The ruleset offers exactly these TLS versions to choose from
-    internal SslProtocols? SslProtocol
+    internal SslProtocols TlsMode
     {
-        get => communication.SslProtocol switch
+        get => communication.TlsMode switch
         {
-            null => null,
+            null => SslProtocols.Tls12 | SslProtocols.Tls13,
             0 => SslProtocols.None,
-            1 => SslProtocols.Tls12,
-            2 => SslProtocols.Tls13,
-            { } p => throw new NotSupportedException($"The {nameof(communication.SslProtocol)} '{p}' is not supported."),
+            1 => SslProtocols.Tls12 | SslProtocols.Tls13,
+            2 => SslProtocols.Tls12,
+            3 => SslProtocols.Tls13,
+            { } p => throw new NotSupportedException($"The {nameof(communication.TlsMode)} '{p}' is not supported."),
         };
-        set => communication.SslProtocol = value switch
+        set => communication.TlsMode = value switch
         {
-            null => null,
             SslProtocols.None => 0,
-            SslProtocols.Tls12 => 1,
-            SslProtocols.Tls13 => 2,
-            { } p => throw new NotSupportedException($"The {nameof(communication.SslProtocol)} '{p}' is not supported."),
+            SslProtocols.Tls12 | SslProtocols.Tls13 => 1,
+            SslProtocols.Tls12 => 2,
+            SslProtocols.Tls13 => 3,
+            { } p => throw new NotSupportedException($"The {nameof(communication.TlsMode)} '{p}' is not supported."),
         };
 #pragma warning restore CA5398 // The ruleset offers exactly these TLS versions to choose from
     }
 
-    internal bool? DisableCertificateValidation
+    internal bool? ValidateCertificateChain
     {
-        get => communication.DisableCertificateValidation;
-        set => communication.DisableCertificateValidation = value;
+        get => communication.ValidateCertificateChain;
+        set => communication.ValidateCertificateChain = value;
     }
 
     internal bool? CleanSession
