@@ -36,12 +36,14 @@ puts at most 16 of them on a message.
 Envelope children can only be declared under a data point of their own. A folder published as one
 group message carries no user properties at all, not even a timestamp or a validity.
 
-Outgoing, a child never produces a message of its own: its last valid value is remembered and put on
-the next message of its parent. A value written while the child is invalid is not published, and the
-key reappears once a valid value arrives. The fixed children are all derived by the port and none
-of them is written by the engine: `Timestamp` is the timestamp of the parent value, `Validity` its
-validity, and `Type` the assembly-qualified name of the published value's runtime type —
-`System.Object` for a null value.
+Outgoing, a child never produces a message of its own: its last value is remembered and put on the
+next message of its parent, whatever the validity that value was written with. The keys a message
+carries are the ones the tree declares, and a `User property` carries no validity of its own on the
+wire, so nothing about the value decides whether its key travels. A child the engine has not
+written yet is the one key a message leaves out: there is no value to put on it. The fixed children
+are all derived by the port and none of them is written by the engine: `Timestamp` is the timestamp
+of the parent value, `Validity` its validity, and `Type` the assembly-qualified name of the
+published value's runtime type — `System.Object` for a null value.
 
 Incoming, a received message is published as the value of its data point followed by one value per
 child that reads a value of its own — only `User property` and `Timestamp` do; `Validity` and `Type`

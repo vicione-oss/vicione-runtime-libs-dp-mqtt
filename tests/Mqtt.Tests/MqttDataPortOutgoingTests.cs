@@ -255,6 +255,11 @@ public class MqttDataPortOutgoing_SendAsync
         UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
     }
 
+    /// <summary>
+    /// The one key a message leaves out, and the only one: a child the engine has not written has
+    /// no value to put on the wire. That is the absence of a value, not metadata about one — the
+    /// port never leaves a key out because of the state a value was written in.
+    /// </summary>
     [Fact]
     public async Task Omits_a_child_no_value_was_ever_written_for_Async()
     {
@@ -301,18 +306,58 @@ public class MqttDataPortOutgoing_SendAsync
         UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A <c>User property</c> carries no validity of its own on the wire, so the port does not read
+    /// one back as a rule about whether to publish: holding an invalid value back would signal it
+    /// by omission, through a channel the receiver cannot tell from a key never written and the
+    /// tree does not describe.
+    /// </summary>
     [Fact]
-    public async Task Holds_an_invalid_child_value_back_until_a_valid_one_replaces_it_Async()
+    public async Task Publishes_the_last_child_value_the_engine_wrote_whatever_its_validity_Async()
     {
         List<MqttApplicationMessage> messages = [];
         using var client = CreateRecordingClient(messages);
         using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
 
         await outgoing.SendAsync(1, [Value("c1", "B-7", validity: 0), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-        UserProperties(messages[0]).Should().BeEmpty();
+        UserProperties(messages[0]).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
 
         await outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
         UserProperties(messages[1]).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-8", });
+    }
+
+    /// <summary>
+    /// The keys a message carries come from the tree, never from the state of a value, so the same
+    /// tree publishes the same envelope whether the engine calls its child valid or not.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_the_same_keys_for_a_valid_and_an_invalid_child_value_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        await outgoing.SendAsync(2, [Value("c1", "B-8", validity: 0), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages[1]).Keys.Should().Equal(UserProperties(messages[0]).Keys);
+    }
+
+    /// <summary>
+    /// <see cref="MqttEnvelopeCodec.Format"/> writes a missing value as an empty text, and that is
+    /// what a child written as null puts on the wire. The key still travels: the tree declares it,
+    /// and null is a value the engine wrote rather than metadata about one.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_a_child_written_as_null_with_an_empty_text_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", null), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "", });
     }
 
     [Fact]

@@ -130,9 +130,9 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
 
     private void AddUserProperty(MqttApplicationMessageBuilder builder, EnvelopeChild child)
     {
-        // An invalid value is held back rather than dropped: it stays cached, so the key reappears
-        // as soon as the engine writes a valid one.
-        if (_lastChildValues.TryGetValue(child.Node.Id, out var value) && value.Validity != 0)
+        // A user property carries no validity of its own on the wire, so the one the engine
+        // wrote is not read back as a rule about whether to publish: the tree decides the keys.
+        if (_lastChildValues.TryGetValue(child.Node.Id, out var value))
             AddProperty(builder, child.Key, MqttEnvelopeCodec.Format(value.Value));
     }
 
