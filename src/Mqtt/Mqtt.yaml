@@ -57,6 +57,7 @@ Nodes:
           - Id             : SessionExpiryInterval
           - Id             : MaxPendingMessages
           - Id             : BrokerReceiveMaximum
+          - Id             : ClientReceiveMaximum
       - Id                 : LastWill
         Properties         :
           - Id             : WillTopic
@@ -549,6 +550,15 @@ Properties:
     DefaultValue: 100
     UiControl   : NumericUpDown
     MaxValue    : 100
+    MinValue    : 1
+
+  - Id          : ClientReceiveMaximum
+    Name        : "Client receive maximum"
+    Description : "Maximum number of QoS 1 and QoS 2 messages this client accepts in flight unacknowledged (MQTT v5 Receive Maximum). 65535 is the protocol default."
+    DataType    : UInt16
+    DefaultValue: 65535
+    UiControl   : NumericUpDown
+    MaxValue    : 65535
     MinValue    : 1
 
 Icons:

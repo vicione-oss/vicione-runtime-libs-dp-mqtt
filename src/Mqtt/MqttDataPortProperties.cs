@@ -172,6 +172,12 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
         set => communication.BrokerReceiveMaximum = value;
     }
 
+    internal ushort? ClientReceiveMaximum
+    {
+        get => communication.ClientReceiveMaximum;
+        set => communication.ClientReceiveMaximum = value;
+    }
+
     internal Serializer DefaultSerializer
     {
         get => communication.DefaultSerializer switch

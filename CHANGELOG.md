@@ -10,6 +10,7 @@
 - Add `CertificateAuthorityFile` to validate the MQTT broker against a private PKI instead of having
   to disable the certificate validation. A self-signed broker certificate configured there anchors on
   itself, which trusts that one broker and nothing else
+- Add the `ClientReceiveMaximum` option to the MQTT DataPort (MQTT v5.0 only; ignored on v3.1.1)
 
 ### Changed
 

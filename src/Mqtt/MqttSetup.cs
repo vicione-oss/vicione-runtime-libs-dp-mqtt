@@ -2,6 +2,7 @@
 using System.Net.Mime;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Extensions;
+using MQTTnet.Formatter;
 
 namespace ViciOne.Suite.DataPort;
 
@@ -40,6 +41,8 @@ internal static class MqttSetup
             MaxPendingMessages = properties.MaxPendingMessages,
             BrokerReceiveMaximum = properties.BrokerReceiveMaximum,
         };
+        if (properties.ProtocolVersion == MqttProtocolVersion.V500)
+            communicationInfo.ClientReceiveMaximum = properties.ClientReceiveMaximum;
         switch (properties.Protocol)
         {
             case MqttProtocol.Tcp:

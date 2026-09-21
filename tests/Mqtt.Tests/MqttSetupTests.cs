@@ -2,6 +2,7 @@
 using System.Net.Mime;
 using System.Security.Authentication;
 using AwesomeAssertions;
+using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using Xunit;
 
@@ -230,5 +231,39 @@ public class MqttSetup_ToCommunicationInfo
         var communicationInfo = communication.ToCommunicationInfo();
 
         communicationInfo.SessionExpiryInterval.Should().Be(configuredInterval);
+    }
+
+    [Theory]
+    [InlineData((ushort)10, (ushort)10)]
+    [InlineData(null, null)]
+    public void Configures_client_receive_maximum(ushort? receiveMaximum, ushort? configuredReceiveMaximum)
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            ProtocolVersion = MqttProtocolVersion.V500,
+            ClientReceiveMaximum = receiveMaximum,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.ClientReceiveMaximum.Should().Be(configuredReceiveMaximum);
+    }
+
+    [Fact]
+    public void Omits_client_receive_maximum_for_protocol_version_3_1_1()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            ProtocolVersion = MqttProtocolVersion.V311,
+            ClientReceiveMaximum = 65535,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.ClientReceiveMaximum.Should().BeNull();
     }
 }

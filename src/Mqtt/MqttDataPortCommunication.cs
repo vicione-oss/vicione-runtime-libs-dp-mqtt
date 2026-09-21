@@ -31,6 +31,7 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
     public int? MaxPendingMessages { get; set; }
     public byte? DefaultSerializer { get; set; }
     public ushort? BrokerReceiveMaximum { get; set; }
+    public ushort? ClientReceiveMaximum { get; set; }
 
     /// <summary>
     /// The generated text representation of a record prints every property, which writes the
@@ -65,6 +66,7 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
         builder.Append(", MaxPendingMessages = ").Append(MaxPendingMessages);
         builder.Append(", DefaultSerializer = ").Append(DefaultSerializer);
         builder.Append(", BrokerReceiveMaximum = ").Append(BrokerReceiveMaximum);
+        builder.Append(", ClientReceiveMaximum = ").Append(ClientReceiveMaximum);
 
         return true;
     }
