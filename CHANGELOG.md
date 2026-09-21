@@ -30,6 +30,9 @@
 - Forward the `Timestamp` of a received message as the point in time it names, which was moved by
   the UTC offset of the host whenever the value was published again, and read a `Timestamp` written
   without a time zone as UTC rather than as the local time of the receiving host
+- Read the envelope children of a received message with the validity of the message itself, which
+  they ignored: a message a publisher declared invalid delivered its children as valid, so an
+  engine reading only a child acted on data the sender had marked bad
 - Honour the cancellation of a send cycle, which was carried all the way to the publish and then
   ignored: no further message is published once the cycle is cancelled, and one the broker never
   answers is given up on instead of holding the port

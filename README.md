@@ -46,12 +46,16 @@ validity, and `Type` the assembly-qualified name of the published value's runtim
 Incoming, a received message is published as the value of its data point followed by one value per
 child that reads a value of its own — only `User property` and `Timestamp` do; `Validity` and `Type`
 travel outbound only and never fan out — in the order the tree declares
-them. The validity of the received message reaches the engine as the validity of the data point
-itself. A user property key is matched exactly, the reserved keys are matched ignoring case, and
-every value is read as the data type its child declares. A property the message does not carry, or
-one whose text is not a value of that data type, leaves its child invalid; a payload that cannot be
-read leaves the data point invalid while its children are published all the same. An invalid value
-carries the default of its data type, because a typed incoming link cannot take a null.
+them. The validity of the received message reaches the engine as the validity of the data point and
+of every child read from it, so a child is never more valid than the message that carried it; a
+message that declares no validity is valid, and its children are too. A child of a message declared
+invalid still carries the value read from it, flagged rather than dropped, so the engine sees the
+reading together with the state its sender gave it. A user property key is matched exactly, the
+reserved keys are matched ignoring case, and every value is read as the data type its child
+declares. A property the message does not carry, or one whose text is not a value of that data
+type, leaves its child invalid; a payload that cannot be read leaves the data point invalid while
+its children are published all the same. An invalid value carries the default of its data type,
+because a typed incoming link cannot take a null.
 
 A tree the port cannot serve is refused when the port starts rather than failing message by message:
 envelope children on MQTT 3.1.1, a child under another child, a duplicate or reserved key, more than

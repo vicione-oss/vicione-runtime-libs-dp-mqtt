@@ -743,6 +743,66 @@ public class MqttDataPortIncoming_
     }
 
     /// <summary>
+    /// A child is never more valid than the message that carried it, and it keeps the value it was
+    /// written with: an engine reading only the child sees the reading and the flag the publisher
+    /// put on it, rather than data the sender had already marked bad.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_the_envelope_children_of_an_invalid_message_as_invalid_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("0"))
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("42"))
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().SatisfyRespectively(
+            parent =>
+            {
+                parent.Channel.Should().Be("v");
+                parent.Value.Should().Be(23L);
+                parent.Validity.Should().Be(0);
+            },
+            batch =>
+            {
+                batch.Channel.Should().Be("batch");
+                batch.Value.Should().Be(42L);
+                batch.Validity.Should().Be(0);
+            },
+            sent =>
+            {
+                sent.Channel.Should().Be("sent");
+                sent.Value.Should().Be(s_senderTimestamp);
+                sent.Validity.Should().Be(0);
+            });
+    }
+
+    /// <summary>
+    /// The engine validity travels as the integer it is, so a child of a valid message carries the
+    /// state its publisher gave the value and not only that it was valid.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_the_envelope_children_with_the_engine_validity_of_the_message_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+
+        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("112"))
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("42"))
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
+            .Build());
+
+        messages.Should().HaveCount(3);
+        messages.Should().AllSatisfy(value => value.Validity.Should().Be(112));
+    }
+
+    /// <summary>
     /// A fixed child the engine never linked has no channel of its own, and the tree is accepted
     /// all the same: a <c>Timestamp</c> is the one child the engine may leave unlinked and still
     /// see on the wire outbound.

@@ -88,8 +88,9 @@ internal sealed class MqttMessageHandler
     /// its own, in the order the tree declares them, so a received message reaches the engine as the
     /// data point and its children together. <see cref="EnvelopeChildKind.Validity"/> and
     /// <see cref="EnvelopeChildKind.Type"/> are outbound only, so neither is a fan-out target; the
-    /// validity of the received message reaches the engine as the validity of the data point
-    /// itself.
+    /// validity of the received message reaches the engine as the validity of the data point and of
+    /// every child read from it, so a child is never more valid than the message that carried it. A
+    /// message that declares no validity is valid, as it has always been.
     /// </summary>
     private void AddEnvelopeChildren(ReceivedMqttMessage received, INode node)
     {
@@ -125,7 +126,7 @@ internal sealed class MqttMessageHandler
             Channel = child.Channel,
             Value = read ? value : InvalidValueOf(child.ValueType),
             Timestamp = received.Timestamp,
-            Validity = read ? 1 : 0,
+            Validity = read ? received.Validity : 0,
         });
     }
 

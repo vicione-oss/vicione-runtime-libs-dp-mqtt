@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.Loader;
 using System.Text;
@@ -125,8 +124,319 @@ public class MqttDataPortOutgoing_ctor
     }
 }
 
-public class MqttDataPortOutgoing_
+public class MqttDataPortOutgoing_SendAsync
 {
+    private const string ParentChannel = "t";
+
+    [Fact]
+    public async Task Publishes_the_payload_content_type_and_format_Async()
+    {
+        var communication = CreateTree();
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(7, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        var message = messages.Should().ContainSingle().Which;
+        message.ContentType.Should().Be("application/json");
+        message.PayloadFormatIndicator.Should().Be(MqttPayloadFormatIndicator.CharacterData);
+    }
+
+    [Fact]
+    public async Task Publishes_the_fixed_children_from_the_parent_value_Async()
+    {
+        var communication = CreateTree(
+            (MqttNodeDesignId.Timestamp, "when", "c1"),
+            (MqttNodeDesignId.Validity, "good", "c2"),
+            (MqttNodeDesignId.UserProperty, "batchId", "c3"));
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(
+            4711,
+            [
+                Value("c3", "B-7"),
+                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
+            ],
+            TestContext.Current.CancellationToken);
+
+        var message = messages.Should().ContainSingle().Which;
+        UserProperties(message).Should().Equal(new Dictionary<string, string>
+        {
+            ["Timestamp"] = "2026-03-04T05:06:07.0000000Z",
+            ["Validity"] = "100",
+            ["batchId"] = "B-7",
+        });
+    }
+
+    /// <summary>
+    /// <c>Timestamp</c> is linkable inbound only, so a value that reaches the child outbound all
+    /// the same is ignored: the message carries the timestamp of the parent value.
+    /// </summary>
+    [Fact]
+    public async Task Publishes_the_timestamp_of_the_parent_value_and_not_one_written_to_the_child_Async()
+    {
+        var communication = CreateTree((MqttNodeDesignId.Timestamp, "when", "c1"));
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(
+            1,
+            [
+                Value("c1", new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc)),
+                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
+            ],
+            TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which)["Timestamp"].Should().Be("2026-03-04T05:06:07.0000000Z");
+    }
+
+    [Fact]
+    public async Task Publishes_the_value_type_when_the_parent_has_a_type_child_Async()
+    {
+        var communication = CreateTypeChildTree();
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string>
+        {
+            [MqttUserProperties.Type] = typeof(int).AssemblyQualifiedName!,
+        });
+    }
+
+    [Fact]
+    public async Task Omits_the_value_type_without_a_type_child_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    private static MqttDataPortCommunication CreateTypeChildTree()
+    {
+        Node parentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "temperature",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { ParentChannel, },
+            TransferredChannels = { ParentChannel, },
+        };
+        Node typeNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = parentNode.Id,
+            Name = "type",
+            DesignId = MqttNodeDesignId.Type,
+        };
+
+        return CreateCommunication([parentNode, typeNode,]);
+    }
+
+    [Fact]
+    public async Task Publishes_one_message_for_a_parent_and_its_child_in_the_same_batch_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
+    }
+
+    [Fact]
+    public async Task Omits_a_child_no_value_was_ever_written_for_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Carries_a_child_value_from_an_earlier_batch_and_publishes_nothing_for_a_child_alone_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        messages.Should().BeEmpty();
+
+        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
+
+        await outgoing.SendAsync(3, [Value("c1", "B-8"),], TestContext.Current.CancellationToken);
+        messages.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Starts_a_new_port_instance_without_the_child_values_of_the_disposed_one_Async()
+    {
+        var communication = CreateTreeWithOneChild();
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using (MqttDataPortOutgoing disposed = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>()))
+        {
+            await disposed.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        }
+
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Holds_an_invalid_child_value_back_until_a_valid_one_replaces_it_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("c1", "B-7", validity: 0), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages[0]).Should().BeEmpty();
+
+        await outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+        UserProperties(messages[1]).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-8", });
+    }
+
+    [Fact]
+    public async Task Publishes_a_folder_group_without_an_envelope_Async()
+    {
+        Node folderNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            DesignId = MqttNodeDesignId.Topic,
+            TransferredChannels = { "g", },
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = folderNode.Id,
+            Name = "value",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { "g", },
+        };
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateCommunication([folderNode, valueNode,]), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(1, [Value("g", 21.5),], TestContext.Current.CancellationToken);
+
+        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Publishes_the_cycles_in_the_order_they_arrived_Async()
+    {
+        TaskCompletionSource gate = new();
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
+        {
+            messages.Add(call.Arg<MqttApplicationMessage>());
+            return messages.Count == 1 ? gate.Task : Task.CompletedTask;
+        });
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var firstCycle = outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        var secondCycle = outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle("the second cycle must not be processed while the first one is still publishing");
+
+        gate.SetResult();
+        await Task.WhenAll(firstCycle, secondCycle);
+
+        messages.Should().HaveCount(2);
+        SingleUserProperty(messages[0]).Should().Be("B-7");
+        SingleUserProperty(messages[1]).Should().Be("B-8");
+    }
+
+    /// <summary>
+    /// The client takes no cancellation token of its own, so a publish that never answers held its
+    /// cycle, and with it every cycle chained behind it, for the life of the port.
+    /// </summary>
+    [Fact]
+    public async Task Gives_up_a_publish_that_never_answers_when_its_cycle_is_cancelled_Async()
+    {
+        using CancellationTokenSource cancellation = new();
+        TaskCompletionSource neverAnswers = new();
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
+        {
+            messages.Add(call.Arg<MqttApplicationMessage>());
+            return messages.Count == 1 ? neverAnswers.Task : Task.CompletedTask;
+        });
+        var communication = CreateTreeWithOneChild();
+        communication.Host = "local";
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var stuckCycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
+        var nextCycle = outgoing.SendAsync(2, [Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
+
+        stuckCycle.IsCompleted.Should().BeFalse();
+
+        await cancellation.CancelAsync();
+        await stuckCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await nextCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        messages.Should().HaveCount(2, "a cancelled cycle must not hold up the one chained behind it");
+    }
+
+    /// <summary>
+    /// Cancelling a cycle is how the engine stops the port, so it must not reach the log as a
+    /// failure to send. Nothing was cancellable before the token was honoured at the publish.
+    /// </summary>
+    [Fact]
+    public async Task Does_not_report_a_cancelled_cycle_as_a_failure_Async()
+    {
+        using CancellationTokenSource cancellation = new();
+        TaskCompletionSource neverAnswers = new();
+        var client = Substitute.For<IVirtualMqttClient>();
+        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(neverAnswers.Task);
+        var communication = CreateTreeWithOneChild();
+        communication.Host = "local";
+        FakeLogger<MqttDataPortOutgoing> logger = new();
+        using MqttDataPortOutgoing outgoing = new(communication, client, logger);
+
+        var cycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
+        await cancellation.CancelAsync();
+        await cycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        logger.Collector.GetSnapshot().Should().NotContain(e => e.Level >= LogLevel.Error);
+    }
+
+    [Fact]
+    public async Task Carries_a_child_of_one_cycle_on_the_parent_of_the_next_Async()
+    {
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        var childCycle = outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
+        var parentCycle = outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
+        await Task.WhenAll(childCycle, parentCycle);
+
+        SingleUserProperty(messages.Should().ContainSingle().Which).Should().Be("B-7");
+    }
+
     [Fact]
     public async Task Can_send_node_as_group_and_value_node_Async()
     {
@@ -487,6 +797,9 @@ public class MqttDataPortOutgoing_
     [InlineData(0, "Test", "\"Test\"")]
     [InlineData(1, "Test", "\"Test\"")]
     [InlineData(2, "Test", "Test")]
+    [InlineData(0, 21.5, "21.5")]
+    [InlineData(1, 21.5, "21.5")]
+    [InlineData(2, 21.5, "21.5")]
     public async Task Can_send_single_node_with_serializer(byte serializer, object value, string result)
     {
         Node valueNode = new()
@@ -600,362 +913,6 @@ public class MqttDataPortOutgoing_
         messages.Should()
             .ContainSingle()
             .Which.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
-    }
-}
-
-public class MqttDataPortOutgoing_SendAsync
-{
-    private const string ParentChannel = "t";
-
-    [Fact]
-    public async Task Publishes_a_plain_data_point_on_the_wire_Async()
-    {
-        Node plantNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "plant",
-            DesignId = MqttNodeDesignId.Topic,
-        };
-        Node temperatureNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "temperature",
-            ParentId = plantNode.Id,
-            AffectedChannels = { "t", },
-            TransferredChannels = { "t", },
-            DesignId = MqttNodeDesignId.Topic,
-            Properties =
-            {
-                { MqttNodeProperties.Retain, new() { Value = true, } },
-            },
-        };
-        MqttDataPortCommunication communication = new()
-        {
-            Nodes = [plantNode, temperatureNode,],
-        };
-        _ = new MqttDataPortProperties(communication)
-        {
-            ProtocolVersion = MqttProtocolVersion.V500,
-            QualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
-        };
-        List<MqttApplicationMessage> messages = [];
-        var client = Substitute.For<IVirtualMqttClient>();
-        await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-        List<ExternalValue> values =
-        [
-            new()
-            {
-                Channel = "t",
-                Value = 21.5,
-                Validity = 100,
-                Timestamp = new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc),
-            },
-        ];
-
-        await outgoing.SendAsync(7, values, TestContext.Current.CancellationToken);
-
-        var message = messages.Should().ContainSingle().Which;
-        message.Topic.Should().Be("plant/temperature");
-        message.Payload.ToArray().Should().Equal(Encoding.UTF8.GetBytes("21.5"));
-        message.QualityOfServiceLevel.Should().Be(MqttQualityOfServiceLevel.AtLeastOnce);
-        message.Retain.Should().BeTrue();
-        message.ContentType.Should().Be("application/json");
-        message.PayloadFormatIndicator.Should().Be(MqttPayloadFormatIndicator.CharacterData);
-    }
-
-    [Fact]
-    public async Task Publishes_the_fixed_children_from_the_parent_value_Async()
-    {
-        var communication = CreateTree(
-            (MqttNodeDesignId.Timestamp, "when", "c1"),
-            (MqttNodeDesignId.Validity, "good", "c2"),
-            (MqttNodeDesignId.UserProperty, "batchId", "c3"));
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(
-            4711,
-            [
-                Value("c3", "B-7"),
-                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
-            ],
-            TestContext.Current.CancellationToken);
-
-        var message = messages.Should().ContainSingle().Which;
-        UserProperties(message).Should().Equal(new Dictionary<string, string>
-        {
-            ["Timestamp"] = "2026-03-04T05:06:07.0000000Z",
-            ["Validity"] = "100",
-            ["batchId"] = "B-7",
-        });
-    }
-
-    /// <summary>
-    /// <c>Timestamp</c> is linkable inbound only, so a value that reaches the child outbound all
-    /// the same is ignored: the message carries the timestamp of the parent value.
-    /// </summary>
-    [Fact]
-    public async Task Publishes_the_timestamp_of_the_parent_value_and_not_one_written_to_the_child_Async()
-    {
-        var communication = CreateTree((MqttNodeDesignId.Timestamp, "when", "c1"));
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(
-            1,
-            [
-                Value("c1", new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc)),
-                Value(ParentChannel, 21.5, new(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)),
-            ],
-            TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which)["Timestamp"].Should().Be("2026-03-04T05:06:07.0000000Z");
-    }
-
-    [Fact]
-    public async Task Publishes_the_value_type_when_the_parent_has_a_type_child_Async()
-    {
-        var communication = CreateTypeChildTree();
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string>
-        {
-            [MqttUserProperties.Type] = typeof(int).AssemblyQualifiedName!,
-        });
-    }
-
-    [Fact]
-    public async Task Omits_the_value_type_without_a_type_child_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value(ParentChannel, 112),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
-    }
-
-    private static MqttDataPortCommunication CreateTypeChildTree()
-    {
-        Node parentNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "temperature",
-            DesignId = MqttNodeDesignId.Topic,
-            AffectedChannels = { ParentChannel, },
-            TransferredChannels = { ParentChannel, },
-        };
-        Node typeNode = new()
-        {
-            Id = Guid.NewGuid(),
-            ParentId = parentNode.Id,
-            Name = "type",
-            DesignId = MqttNodeDesignId.Type,
-        };
-
-        return CreateCommunication([parentNode, typeNode,]);
-    }
-
-    [Fact]
-    public async Task Publishes_one_message_for_a_parent_and_its_child_in_the_same_batch_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
-    }
-
-    [Fact]
-    public async Task Omits_a_child_no_value_was_ever_written_for_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Carries_a_child_value_from_an_earlier_batch_and_publishes_nothing_for_a_child_alone_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
-        messages.Should().BeEmpty();
-
-        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-        UserProperties(messages.Should().ContainSingle().Which).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-7", });
-
-        await outgoing.SendAsync(3, [Value("c1", "B-8"),], TestContext.Current.CancellationToken);
-        messages.Should().ContainSingle();
-    }
-
-    [Fact]
-    public async Task Starts_a_new_port_instance_without_the_child_values_of_the_disposed_one_Async()
-    {
-        var communication = CreateTreeWithOneChild();
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using (MqttDataPortOutgoing disposed = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>()))
-        {
-            await disposed.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
-        }
-
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-        await outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Holds_an_invalid_child_value_back_until_a_valid_one_replaces_it_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value("c1", "B-7", validity: 0), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-        UserProperties(messages[0]).Should().BeEmpty();
-
-        await outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
-        UserProperties(messages[1]).Should().Equal(new Dictionary<string, string> { ["batchId"] = "B-8", });
-    }
-
-    [Fact]
-    public async Task Publishes_a_folder_group_without_an_envelope_Async()
-    {
-        Node folderNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "group",
-            DesignId = MqttNodeDesignId.Topic,
-            TransferredChannels = { "g", },
-        };
-        Node valueNode = new()
-        {
-            Id = Guid.NewGuid(),
-            ParentId = folderNode.Id,
-            Name = "value",
-            DesignId = MqttNodeDesignId.Topic,
-            AffectedChannels = { "g", },
-        };
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateCommunication([folderNode, valueNode,]), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value("g", 21.5),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Publishes_the_cycles_in_the_order_they_arrived_Async()
-    {
-        TaskCompletionSource gate = new();
-        List<MqttApplicationMessage> messages = [];
-        var client = Substitute.For<IVirtualMqttClient>();
-        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
-        {
-            messages.Add(call.Arg<MqttApplicationMessage>());
-            return messages.Count == 1 ? gate.Task : Task.CompletedTask;
-        });
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        var firstCycle = outgoing.SendAsync(1, [Value("c1", "B-7"), Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-        var secondCycle = outgoing.SendAsync(2, [Value("c1", "B-8"), Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
-
-        messages.Should().ContainSingle("the second cycle must not be processed while the first one is still publishing");
-
-        gate.SetResult();
-        await Task.WhenAll(firstCycle, secondCycle);
-
-        messages.Should().HaveCount(2);
-        SingleUserProperty(messages[0]).Should().Be("B-7");
-        SingleUserProperty(messages[1]).Should().Be("B-8");
-    }
-
-    /// <summary>
-    /// The client takes no cancellation token of its own, so a publish that never answers held its
-    /// cycle, and with it every cycle chained behind it, for the life of the port.
-    /// </summary>
-    [Fact]
-    public async Task Gives_up_a_publish_that_never_answers_when_its_cycle_is_cancelled_Async()
-    {
-        using CancellationTokenSource cancellation = new();
-        TaskCompletionSource neverAnswers = new();
-        List<MqttApplicationMessage> messages = [];
-        var client = Substitute.For<IVirtualMqttClient>();
-        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(call =>
-        {
-            messages.Add(call.Arg<MqttApplicationMessage>());
-            return messages.Count == 1 ? neverAnswers.Task : Task.CompletedTask;
-        });
-        var communication = CreateTreeWithOneChild();
-        communication.Host = "local";
-        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        var stuckCycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
-        var nextCycle = outgoing.SendAsync(2, [Value(ParentChannel, 22.5),], TestContext.Current.CancellationToken);
-
-        stuckCycle.IsCompleted.Should().BeFalse();
-
-        await cancellation.CancelAsync();
-        await stuckCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        await nextCycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-
-        messages.Should().HaveCount(2, "a cancelled cycle must not hold up the one chained behind it");
-    }
-
-    /// <summary>
-    /// Cancelling a cycle is how the engine stops the port, so it must not reach the log as a
-    /// failure to send. Nothing was cancellable before the token was honoured at the publish.
-    /// </summary>
-    [Fact]
-    public async Task Does_not_report_a_cancelled_cycle_as_a_failure_Async()
-    {
-        using CancellationTokenSource cancellation = new();
-        TaskCompletionSource neverAnswers = new();
-        var client = Substitute.For<IVirtualMqttClient>();
-        client.Publish(Arg.Any<MqttApplicationMessage>()).Returns(neverAnswers.Task);
-        var communication = CreateTreeWithOneChild();
-        communication.Host = "local";
-        FakeLogger<MqttDataPortOutgoing> logger = new();
-        using MqttDataPortOutgoing outgoing = new(communication, client, logger);
-
-        var cycle = outgoing.SendAsync(1, [Value(ParentChannel, 21.5),], cancellation.Token);
-        await cancellation.CancelAsync();
-        await cycle.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-
-        logger.Collector.GetSnapshot().Should().NotContain(e => e.Level >= LogLevel.Error);
-    }
-
-    [Fact]
-    public async Task Carries_a_child_of_one_cycle_on_the_parent_of_the_next_Async()
-    {
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateTreeWithOneChild(), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        var childCycle = outgoing.SendAsync(1, [Value("c1", "B-7"),], TestContext.Current.CancellationToken);
-        var parentCycle = outgoing.SendAsync(2, [Value(ParentChannel, 21.5),], TestContext.Current.CancellationToken);
-        await Task.WhenAll(childCycle, parentCycle);
-
-        SingleUserProperty(messages.Should().ContainSingle().Which).Should().Be("B-7");
     }
 
     internal static MqttDataPortCommunication CreateTreeWithOneChild()

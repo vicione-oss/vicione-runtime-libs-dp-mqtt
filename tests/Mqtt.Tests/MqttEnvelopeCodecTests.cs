@@ -27,6 +27,18 @@ public class MqttEnvelopeCodec_Format
     public void Writes_a_float_with_every_digit_it_takes_to_read_it_back()
         => MqttEnvelopeCodec.Format(0.1 + 0.2).Should().Be("0.30000000000000004");
 
+    /// <summary>
+    /// The text of each of these is what <c>MqttEnvelopeCodec_Parse.Reads_a_float</c> reads back,
+    /// so the two halves of the conversion meet on the same literal rather than on each other.
+    /// </summary>
+    [Theory]
+    [InlineData(0d, "0")]
+    [InlineData(-1.5d, "-1.5")]
+    [InlineData(double.MaxValue, "1.7976931348623157E+308")]
+    [InlineData(double.Epsilon, "5E-324")]
+    public void Writes_a_float_at_the_edges_of_its_range(double value, string expected)
+        => MqttEnvelopeCodec.Format(value).Should().Be(expected);
+
     [Fact]
     public void Writes_a_date_in_utc()
         => MqttEnvelopeCodec.Format(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)).Should().Be("2026-03-04T05:06:07.0000000Z");
@@ -45,50 +57,44 @@ public class MqttEnvelopeCodec_Parse
     [Theory]
     [InlineData("plain text")]
     [InlineData("")]
-    public void Round_trips_a_string(string value)
-        => MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(string)).Should().Be(value);
+    public void Reads_a_string_verbatim(string text)
+        => MqttEnvelopeCodec.Parse(text, typeof(string)).Should().Be(text);
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Round_trips_a_bool(bool value)
-        => MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(bool)).Should().Be(value);
+    [InlineData("true", true)]
+    [InlineData("false", false)]
+    public void Reads_a_bool(string text, bool expected)
+        => MqttEnvelopeCodec.Parse(text, typeof(bool)).Should().Be(expected);
 
     [Theory]
-    [InlineData(0L)]
-    [InlineData(-1L)]
-    [InlineData(long.MaxValue)]
-    [InlineData(long.MinValue)]
-    public void Round_trips_an_integer(long value)
-        => MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(long)).Should().Be(value);
+    [InlineData("0", 0L)]
+    [InlineData("-1", -1L)]
+    [InlineData("9223372036854775807", long.MaxValue)]
+    [InlineData("-9223372036854775808", long.MinValue)]
+    public void Reads_an_integer(string text, long expected)
+        => MqttEnvelopeCodec.Parse(text, typeof(long)).Should().Be(expected);
 
     [Theory]
-    [InlineData(0d)]
-    [InlineData(-1.5d)]
-    [InlineData(double.MaxValue)]
-    [InlineData(double.Epsilon)]
-    public void Round_trips_a_float(double value)
-        => MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(double)).Should().Be(value);
+    [InlineData("0", 0d)]
+    [InlineData("-1.5", -1.5d)]
+    [InlineData("1.7976931348623157E+308", double.MaxValue)]
+    [InlineData("5E-324", double.Epsilon)]
+    public void Reads_a_float(string text, double expected)
+        => MqttEnvelopeCodec.Parse(text, typeof(double)).Should().Be(expected);
 
     [Fact]
-    public void Round_trips_a_float_that_needs_seventeen_digits()
-        => MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(0.1 + 0.2), typeof(double)).Should().Be(0.1 + 0.2);
+    public void Reads_a_float_that_needs_seventeen_digits()
+        => MqttEnvelopeCodec.Parse("0.30000000000000004", typeof(double)).Should().Be(0.1 + 0.2);
 
     [Fact]
-    public void Round_trips_a_date()
-    {
-        DateTime value = new(2026, 3, 4, 5, 6, 7, 891, DateTimeKind.Utc);
-
-        MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(DateTime)).Should().Be(value);
-    }
+    public void Reads_a_date_in_utc()
+        => MqttEnvelopeCodec.Parse("2026-03-04T05:06:07.8910000Z", typeof(DateTime))
+            .Should().Be(new DateTime(2026, 3, 4, 5, 6, 7, 891, DateTimeKind.Utc));
 
     [Fact]
-    public void Round_trips_a_date_with_a_non_utc_offset_as_the_same_instant()
-    {
-        var value = new DateTimeOffset(2026, 3, 4, 5, 6, 7, TimeSpan.FromHours(2)).LocalDateTime;
-
-        MqttEnvelopeCodec.Parse(MqttEnvelopeCodec.Format(value), typeof(DateTime)).Should().Be(value.ToUniversalTime());
-    }
+    public void Reads_a_date_with_a_non_utc_offset_as_the_same_instant_in_utc()
+        => MqttEnvelopeCodec.Parse("2026-03-04T05:06:07.0000000+02:00", typeof(DateTime))
+            .Should().Be(new DateTime(2026, 3, 4, 3, 6, 7, DateTimeKind.Utc));
 
     [Fact]
     public void Returns_nothing_for_a_text_the_declared_type_cannot_read()
