@@ -43,6 +43,30 @@ public class MqttDataPortIncoming_ctor
 
         instance.Should().NotBeNull().And.BeOfType<MqttDataPortIncoming>();
     }
+
+    [Fact]
+    public void Refuses_to_start_with_an_unknown_quality_of_service_override()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)7, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+        };
+
+        var act = () => new MqttDataPortIncoming(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*quality of service override '7'*");
+    }
 }
 
 public class MqttDataPortIncoming_ConnectAsync
@@ -93,6 +117,123 @@ public class MqttDataPortIncoming_ConnectAsync
         await client.Received(1).Disconnect();
         await client.Received(1).Unsubscribe("group/value1");
         await client.Received(1).Unsubscribe("group/value2");
+    }
+
+    [Theory]
+    [InlineData(0, MqttQualityOfServiceLevel.AtLeastOnce)]
+    [InlineData(1, MqttQualityOfServiceLevel.AtMostOnce)]
+    [InlineData(3, MqttQualityOfServiceLevel.ExactlyOnce)]
+    public async Task Subscribes_with_the_resolved_quality_of_service_Async(byte qualityOfServiceOverride, MqttQualityOfServiceLevel qualityOfService)
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = qualityOfServiceOverride, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            QualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
+        };
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await client.Received(1).Subscribe("value", qualityOfService, false);
+    }
+
+    [Fact]
+    public async Task Subscribes_with_the_highest_quality_of_service_and_warns_when_data_points_disagree_Async()
+    {
+        Node firstNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v1", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)1, } },
+            },
+        };
+        Node secondNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v2", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)3, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [firstNode, secondNode,],
+        };
+        var client = Substitute.For<IVirtualMqttClient>();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await client.Received(1).Subscribe("value", MqttQualityOfServiceLevel.ExactlyOnce, false);
+        logger.Collector.Count.Should().Be(1);
+        logger.LatestRecord.Level.Should().Be(LogLevel.Warning);
+        logger.LatestRecord.Message.Should().MatchEquivalentOf("*value*different qualities of service*ExactlyOnce*");
+    }
+
+    [Fact]
+    public async Task Does_not_warn_when_an_override_matches_the_inherited_quality_of_service_Async()
+    {
+        Node inheritingNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v1", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)0, } },
+            },
+        };
+        Node explicitNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v2", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)2, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [inheritingNode, explicitNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            QualityOfService = MqttQualityOfServiceLevel.AtLeastOnce,
+        };
+        var client = Substitute.For<IVirtualMqttClient>();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await client.Received(1).Subscribe("value", MqttQualityOfServiceLevel.AtLeastOnce, false);
+        logger.Collector.Count.Should().Be(0);
     }
 }
 
@@ -1441,5 +1582,63 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         logger.Collector.Count.Should().Be(1);
         logger.LatestRecord.Exception.Should().BeOfType<InvalidOperationException>();
         logger.LatestRecord.Message.Should().MatchEquivalentOf("*fail*receive*local*23*");
+    }
+}
+
+public class MqttDataPortIncoming_DisconnectAsync
+{
+    [Fact]
+    public async Task Unsubscribes_before_disconnecting_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+        };
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await incoming.DisconnectAsync(TestContext.Current.CancellationToken);
+
+        Received.InOrder(() =>
+        {
+            _ = client.Unsubscribe("value");
+            _ = client.Disconnect();
+        });
+    }
+
+    [Fact]
+    public async Task Keeps_the_subscriptions_of_a_persistent_session_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            CleanSession = false,
+        };
+        var client = Substitute.For<IVirtualMqttClient>();
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        await incoming.DisconnectAsync(TestContext.Current.CancellationToken);
+
+        await client.DidNotReceiveWithAnyArgs().Unsubscribe(default!);
+        await client.Received(1).Disconnect();
     }
 }

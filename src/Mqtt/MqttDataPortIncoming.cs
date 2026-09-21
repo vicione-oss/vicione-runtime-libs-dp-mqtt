@@ -17,8 +17,8 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
     private readonly MqttDataPortCommunication _communication;
     private readonly IVirtualMqttClient _client;
     private readonly ILogger<MqttDataPortIncoming> _logger;
-    private readonly MqttQualityOfServiceLevel _qualityOfService;
-    private readonly Dictionary<string, IReadOnlyCollection<INode>> _addressNodes;
+    private readonly bool _cleanSession;
+    private readonly Dictionary<string, (MqttQualityOfServiceLevel Level, bool IsAmbiguous)> _subscriptions;
     private readonly MqttMessageHandler _messageHandler;
 
     public event Action<IReadOnlyCollection<ExternalValue>>? Received;
@@ -33,11 +33,11 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
         _client = virtualMqttClient;
         _logger = logger;
         MqttDataPortProperties properties = new(communication);
-        _qualityOfService = properties.QualityOfService;
+        _cleanSession = properties.CleanSession ?? true;
 
         var envelopeChildren = EnvelopeChildren.Create(communication.Nodes, properties.ProtocolVersion == MqttProtocolVersion.V500);
         var (transferredNodeJsonNodes, addressNodes) = InitializeUnspecificTree.InitializeIncoming(communication.Nodes, GenerateTopic);
-        _addressNodes = addressNodes;
+        _subscriptions = addressNodes.ToDictionary(a => a.Key, a => a.Value.ResolveQualityOfService(properties.QualityOfService));
         _messageHandler = new(transferredNodeJsonNodes, addressNodes, timeProvider, JsonSetup.CreatePreserveTypeOptions(loadContext), loadContext, properties.DefaultSerializer, envelopeChildren, logger);
     }
 
@@ -69,17 +69,34 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
         _client.MessageReceived += HandleIncomingValueAsync;
 
         await _client.Connect();
-        foreach (var topic in _addressNodes.Keys)
-            await _client.Subscribe(topic, _qualityOfService, false);
+        foreach (var (topic, (qualityOfService, isAmbiguous)) in _subscriptions)
+        {
+            if (isAmbiguous)
+                _logger.LogAmbiguousQualityOfService(topic, qualityOfService);
+
+            await _client.Subscribe(topic, qualityOfService, false);
+        }
     }
 
+    /// <summary>
+    /// A persistent session keeps its subscriptions on the broker, which queues the messages that
+    /// arrive while this port is away, so only a clean session unsubscribes.
+    /// </summary>
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
-        await _client.Disconnect();
-        foreach (var topic in _addressNodes.Keys)
-            await _client.Unsubscribe(topic);
-
-        _client.MessageReceived -= HandleIncomingValueAsync;
+        try
+        {
+            if (_cleanSession)
+            {
+                foreach (var topic in _subscriptions.Keys)
+                    await _client.Unsubscribe(topic);
+            }
+        }
+        finally
+        {
+            await _client.Disconnect();
+            _client.MessageReceived -= HandleIncomingValueAsync;
+        }
     }
 
     public void Dispose()

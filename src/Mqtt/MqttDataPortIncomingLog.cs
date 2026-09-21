@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.Extensions.Logging;
+using MQTTnet.Protocol;
 
 namespace ViciOne.Suite.DataPort;
 
@@ -25,4 +26,7 @@ internal static partial class MqttDataPortIncomingLog
 
     [LoggerMessage(6, LogLevel.Warning, "Cannot read '{Validity}' as the validity of the message on '{Topic}'. Its values are forwarded as invalid.")]
     internal static partial void LogValidityNotReadable(this ILogger<MqttDataPortIncoming> logger, string validity, string topic);
+
+    [LoggerMessage(7, LogLevel.Warning, "The data points of topic '{Topic}' request different qualities of service. Subscribing with the highest one, '{QualityOfService}'.")]
+    internal static partial void LogAmbiguousQualityOfService(this ILogger<MqttDataPortIncoming> logger, string topic, MqttQualityOfServiceLevel qualityOfService);
 }

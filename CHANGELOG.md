@@ -13,6 +13,7 @@
 - Add the `ClientReceiveMaximum` option to the MQTT DataPort (MQTT v5.0 only; ignored on v3.1.1)
 - Add the `WillQualityOfService` option to the MQTT DataPort
 - Add the `LastWillEnabled` option to the MQTT DataPort
+- Add a per-data-point quality-of-service override to the MQTT DataPort; where data points sharing a topic disagree, the subscription uses the highest and logs a warning naming the topic
 
 ### Changed
 
@@ -62,6 +63,7 @@
   were dropped
 - Correct the description of `BrokerReceiveMaximum` in the MQTT DataPort
 - The MQTT last will no longer reuses the quality of service configured for data
+- Cancel the MQTT subscriptions of a clean session before the client disconnects rather than after it, so the broker can receive the unsubscribe; the managed client sends it asynchronously, so this stays best effort. A persistent session keeps its subscriptions on the broker
 
 ## 1.0.0 - 2026-05-18
 

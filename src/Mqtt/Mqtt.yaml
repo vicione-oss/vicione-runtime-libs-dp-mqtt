@@ -129,6 +129,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointInteger
     MappingId              : Topic
@@ -156,6 +157,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointFloat
     MappingId              : Topic
@@ -183,6 +185,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointDateTime
     MappingId              : Topic
@@ -210,6 +213,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointString
     MappingId              : Topic
@@ -237,6 +241,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointBinary
     MappingId              : Topic
@@ -264,6 +269,7 @@ Nodes:
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   # -------------------- Envelope children -------------------------------
 
@@ -431,7 +437,7 @@ Properties:
 
   - Id          : QualityOfService
     Name        : "Quality of service"
-    Description : "The delivery guarantee used for published messages."
+    Description : "Delivery guarantee applied to all topics of this broker unless a data point overrides it."
     DataType    : UInt8
     DefaultValue: 0
     UiControl   : NumericListBox
@@ -552,6 +558,19 @@ Properties:
     Elements    : { 0: 'Inherited',
                     1: 'JSON',
                     2: 'PlainText', }
+
+  - Id          : QualityOfServiceOverride
+    Name        : "Quality of service"
+    Description : "Delivery guarantee for this data point. Inherited takes the value from the broker."
+    DataType    : UInt8
+    DefaultValue: 0
+    UiControl   : NumericListBox
+    MinValue    : 0
+    MaxValue    : 3
+    Elements    : { 0: 'Inherited',
+                    1: 'At most once',
+                    2: 'At least once',
+                    3: 'Exactly once' }
 
   - Id          : Pooling
     Name        : "Pooling"

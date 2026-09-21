@@ -76,6 +76,30 @@ public class MqttDataPortOutgoing_ctor
         act.Should().Throw<InvalidOperationException>().WithMessage("*MQTT 3.1.1 cannot carry*");
     }
 
+    [Fact]
+    public void Refuses_to_start_with_an_unknown_quality_of_service_override()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = (byte)7, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+        };
+
+        var act = () => new MqttDataPortOutgoing(communication, Substitute.For<IVirtualMqttClient>(), Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        act.Should().Throw<NotSupportedException>().WithMessage("*quality of service override '7'*");
+    }
+
     /// <summary>
     /// A data point of a folder published as one group message has no message of its own, so a
     /// child under it could never be published. Such a data point transfers no value of its own —
@@ -864,6 +888,50 @@ public class MqttDataPortOutgoing_SendAsync
         messages.Should()
             .ContainSingle()
             .Which.ConvertPayloadToString().Should().Be(result);
+    }
+
+    [Theory]
+    [InlineData(0, MqttQualityOfServiceLevel.AtLeastOnce)]
+    [InlineData(1, MqttQualityOfServiceLevel.AtMostOnce)]
+    [InlineData(2, MqttQualityOfServiceLevel.AtLeastOnce)]
+    [InlineData(3, MqttQualityOfServiceLevel.ExactlyOnce)]
+    public async Task Can_send_single_node_with_quality_of_service_override_Async(byte qualityOfServiceOverride, MqttQualityOfServiceLevel qualityOfService)
+    {
+        Node valueNode = new()
+        {
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            Properties = new()
+            {
+                { MqttNodeProperties.QualityOfServiceOverride, new() { Value = qualityOfServiceOverride, } },
+            },
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+            QualityOfService = (byte)MqttQualityOfServiceLevel.AtLeastOnce,
+        };
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        List<ExternalValue> values =
+        [
+            new()
+            {
+                Channel = "v",
+                Value = 112,
+            },
+        ];
+
+        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
+
+        messages.Should()
+            .ContainSingle()
+            .Which.QualityOfServiceLevel.Should().Be(qualityOfService);
     }
 
     [Fact]
