@@ -958,6 +958,39 @@ public class MqttDataPortIncoming_
             e.Level == LogLevel.Warning && e.Message.Contains("value"));
     }
 
+    /// <summary>
+    /// A data point the tree gives no data type has nothing to read its payload with. The type a
+    /// publisher declares is not consulted for it either, so there is no value to forward.
+    /// </summary>
+    [Fact]
+    public async Task Forwards_no_value_if_the_data_point_declares_no_data_type_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(long).AssemblyQualifiedName!))
+            .Build());
+
+        messages.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value") && e.Message.Contains("unknown"));
+    }
+
     [Fact]
     public async Task Can_handle_receive_failure_Async()
     {
