@@ -23,31 +23,42 @@ public class MqttDataPortCtorBenchmark : IDisposable
     {
         for (var i = 0; i < NodeCount; i++)
         {
-            var nodeId = Guid.NewGuid();
-            Node columnNode = new()
-            {
-                Id = nodeId,
-                DesignId = MqttNodeDesignId.Topic,
-                Name = nodeId.ToString().Replace("-", string.Empty, StringComparison.InvariantCulture),
-                AffectedChannels = { nodeId.ToString(), },
-                TransferredChannels = { nodeId.ToString(), },
-                ValueType = typeof(string),
-            };
-            _nodes.Add(columnNode);
+            _nodes.Add(CreateDataPoint());
 
+            var parent = CreateDataPoint();
             var childId = Guid.NewGuid();
-            columnNode.TransferredChannels.Add(childId.ToString());
-            _nodesWithEnvelopeChildren.Add(columnNode);
+
+            parent.TransferredChannels.Add(childId.ToString());
+            _nodesWithEnvelopeChildren.Add(parent);
             _nodesWithEnvelopeChildren.Add(new()
             {
                 Id = childId,
-                ParentId = nodeId,
+                ParentId = parent.Id,
                 DesignId = MqttNodeDesignId.UserProperty,
                 Name = "batchId",
                 AffectedChannels = { childId.ToString(), },
                 ValueType = typeof(string),
             });
         }
+    }
+
+    /// <summary>
+    /// A tree of its own for each list: the one with the envelope children is measured against the
+    /// one without, so the two may not share a node the setup of the other one adds a channel to.
+    /// </summary>
+    private static Node CreateDataPoint()
+    {
+        var id = Guid.NewGuid();
+
+        return new()
+        {
+            Id = id,
+            DesignId = MqttNodeDesignId.Topic,
+            Name = id.ToString().Replace("-", string.Empty, StringComparison.InvariantCulture),
+            AffectedChannels = { id.ToString(), },
+            TransferredChannels = { id.ToString(), },
+            ValueType = typeof(string),
+        };
     }
 
     [Params(1_000, 10_000)]
