@@ -54,7 +54,12 @@ message that declares no validity is valid, and its children are too. A child of
 invalid still carries the value read from it, flagged rather than dropped, so the engine sees the
 reading together with the state its sender gave it. A user property key is matched exactly, the
 reserved keys are matched ignoring case, and every value is read as the data type its child
-declares. Nothing the message did not carry reaches the engine: a payload the configured data type
+declares. A point in time is read from plain ISO 8601, with a fraction of one to seven digits or
+none at all and with the zone written as `Z`, as an offset, or left off to mean the UTC this port
+writes — the port writes the round-trip format back, which demands exactly seven digits, but no
+sender other than this one has a reason to produce that. A `Timestamp` this port cannot read is
+reported, and the time the message was received stands in for it; a message that names no time at
+all is only missing one and is not reported. Nothing the message did not carry reaches the engine: a payload the configured data type
 cannot read forwards no value for its data point, nor for the member of a group message it belongs
 to, and a property the message leaves out or writes as a text that is not a value of its child's
 data type forwards no value for that child. The default of a data type would be a reading its

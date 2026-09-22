@@ -91,10 +91,48 @@ public class MqttEnvelopeCodec_Parse
         => MqttEnvelopeCodec.Parse("2026-03-04T05:06:07.8910000Z", typeof(DateTime))
             .Should().Be(new DateTime(2026, 3, 4, 5, 6, 7, 891, DateTimeKind.Utc));
 
+    /// <summary>
+    /// The kind carries the fix as much as the ticks do: the outgoing side reads a timestamp of an
+    /// unspecified kind as local time, so one that came back unspecified would be republished moved
+    /// by the offset of the host. An equality assertion compares ticks alone and would not see it.
+    /// </summary>
     [Fact]
     public void Reads_a_date_with_a_non_utc_offset_as_the_same_instant_in_utc()
-        => MqttEnvelopeCodec.Parse("2026-03-04T05:06:07.0000000+02:00", typeof(DateTime))
-            .Should().Be(new DateTime(2026, 3, 4, 3, 6, 7, DateTimeKind.Utc));
+    {
+        var timestamp = MqttEnvelopeCodec.Parse("2026-03-04T05:06:07.0000000+02:00", typeof(DateTime))
+            .Should().BeOfType<DateTime>().Which;
+
+        timestamp.Should().Be(new DateTime(2026, 3, 4, 3, 6, 7, DateTimeKind.Utc));
+        timestamp.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    /// <summary>
+    /// A sender that is not this port writes plain ISO 8601, with any number of fractional digits
+    /// or none, and with the zone as <c>Z</c>, as an offset, or left off to mean UTC.
+    /// </summary>
+    [Theory]
+    [InlineData("2026-03-04T05:06:07Z")]
+    [InlineData("2026-03-04T05:06:07")]
+    [InlineData("2026-03-04T05:06:07.0Z")]
+    [InlineData("2026-03-04T05:06:07.000Z")]
+    [InlineData("2026-03-04T07:06:07+02:00")]
+    [InlineData("2026-03-04T00:06:07-05:00")]
+    public void Reads_a_date_written_as_plain_iso_8601(string text)
+    {
+        var timestamp = MqttEnvelopeCodec.Parse(text, typeof(DateTime)).Should().BeOfType<DateTime>().Which;
+
+        timestamp.Should().Be(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc));
+        timestamp.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData("2026-03-04")]
+    [InlineData("2026-03-04 05:06:07Z")]
+    [InlineData("04/03/2026 05:06:07")]
+    [InlineData("2026-03-04T05:06:07.12345678Z")]
+    [InlineData("the day before")]
+    public void Returns_nothing_for_a_text_that_is_not_a_point_in_time(string text)
+        => MqttEnvelopeCodec.Parse(text, typeof(DateTime)).Should().BeNull();
 
     [Fact]
     public void Returns_nothing_for_a_text_the_declared_type_cannot_read()

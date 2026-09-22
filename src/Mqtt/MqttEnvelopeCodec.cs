@@ -14,6 +14,15 @@ internal static class MqttEnvelopeCodec
     private const string FalseText = "false";
     private const string RoundtripFormat = "O";
 
+    /// <summary>
+    /// What a timestamp is read from. The round-trip format this port writes demands exactly seven
+    /// fractional-second digits, which no sender but this one has a reason to produce, so the
+    /// fraction is optional here and may be one to seven digits or absent altogether. The zone is
+    /// optional too, and may be <c>Z</c> or an offset. A text without a date and a time of day is
+    /// not a point in time and is not read.
+    /// </summary>
+    private const string TimestampFormat = "yyyy-MM-ddTHH:mm:ss.FFFFFFFK";
+
     internal static string Format(object? value)
         => value switch
         {
@@ -42,7 +51,7 @@ internal static class MqttEnvelopeCodec
         // A sender that leaves the zone off means the UTC this port writes, not the local time of
         // whichever host happens to read the message.
         if (type == typeof(DateTime))
-            return DateTime.TryParseExact(text, RoundtripFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
+            return DateTime.TryParseExact(text, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
 
         return null;
     }

@@ -1,5 +1,4 @@
-﻿using System;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.Json.Nodes;
 using MQTTnet;
 using MQTTnet.Extensions;
@@ -10,21 +9,6 @@ internal static class MqttApplicationMessageExtensions
 {
     internal static JsonNode? GetPayloadAsJsonNode(this MqttApplicationMessage message)
         => MqttPayloadHelper.GetMessagePayloadAsJsonNode(message);
-
-    internal static DateTimeOffset GetTimestamp(this MqttApplicationMessage message, TimeProvider? timeProvider = null)
-    {
-        timeProvider ??= TimeProvider.System;
-        return message.ReadTimestamp() ?? timeProvider.GetUtcNow();
-    }
-
-    /// <summary>
-    /// The timestamp the sender put on the message, or <c>null</c> when it carries none or one that
-    /// is not a round-trip formatted point in time.
-    /// </summary>
-    internal static DateTime? ReadTimestamp(this MqttApplicationMessage message)
-        => message.UserProperties?.FindOptional(MqttUserProperties.Timestamp) is { } property
-            ? MqttEnvelopeCodec.Parse(property.GetText(), typeof(DateTime)) as DateTime?
-            : null;
 
     /// <summary>
     /// The assembly-qualified name of the data type the sender named for the payload, or

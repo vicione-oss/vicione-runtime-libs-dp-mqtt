@@ -19,4 +19,7 @@ internal static partial class MqttDataPortIncomingLog
 
     [LoggerMessage(4, LogLevel.Warning, "Cannot read the envelope value '{Key}' of the message received on '{Topic}'. No value is forwarded for it.")]
     internal static partial void LogEnvelopeValueNotReadable(this ILogger<MqttDataPortIncoming> logger, string key, string topic);
+
+    [LoggerMessage(5, LogLevel.Warning, "Cannot read '{Timestamp}' as the point in time the message on '{Topic}' was sent at. The time it was received is used instead.")]
+    internal static partial void LogTimestampNotReadable(this ILogger<MqttDataPortIncoming> logger, string timestamp, string topic);
 }

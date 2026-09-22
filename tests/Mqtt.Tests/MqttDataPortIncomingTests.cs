@@ -814,13 +814,106 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             Host = "local",
         };
 
-        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
             .WithTopic("value")
             .WithPayload("23")
             .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("the day before"))
             .Build());
 
         messages.Should().ContainSingle().Which.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("the day before") && e.Message.Contains("value"));
+    }
+
+    /// <summary>
+    /// A `Timestamp` child reads the same property the message was read from, so one unreadable text
+    /// is one warning and not two, and the child that could not be read forwards nothing.
+    /// </summary>
+    [Fact]
+    public async Task Reports_an_unreadable_timestamp_once_for_a_message_and_its_child_Async()
+    {
+        var (communication, _) = CreateTreeWithEnvelopeChildren();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty("batchId", Encoding.UTF8.GetBytes("42"))
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("the day before"))
+            .Build());
+
+        messages.Should().SatisfyRespectively(
+            parent => parent.Channel.Should().Be("v"),
+            batch => batch.Channel.Should().Be("batch"));
+        logger.Collector.GetSnapshot().Should().ContainSingle().Which.Message
+            .Should().Contain("the day before");
+    }
+
+    /// <summary>
+    /// A message that names no time at all is only missing one, so the receive time stands in for it
+    /// without a word. Only a time the sender did name and this port could not read is worth one.
+    /// </summary>
+    [Fact]
+    public async Task Falls_back_to_the_receive_time_of_a_message_without_a_timestamp_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .Build());
+
+        messages.Should().ContainSingle().Which.Timestamp.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The point of reading more than the round-trip format: a publisher that is not this port
+    /// writes plain ISO 8601, and the time it names reaches the engine instead of the receive time.
+    /// </summary>
+    [Fact]
+    public async Task Reads_a_timestamp_a_foreign_publisher_wrote_as_plain_iso_8601_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes("2026-03-04T05:06:07Z"))
+            .Build());
+
+        messages.Should().ContainSingle().Which.Timestamp.Should().Be(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc));
+        logger.Collector.GetSnapshot().Should().BeEmpty();
     }
 
     [Fact]

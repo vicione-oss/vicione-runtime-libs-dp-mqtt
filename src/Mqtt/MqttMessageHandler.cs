@@ -54,6 +54,9 @@ internal sealed class MqttMessageHandler
 
         ReceivedMqttMessage received = new(eventArgs.ApplicationMessage, _timeProvider);
 
+        if (received.UnreadableTimestamp is { } text)
+            _logger.LogTimestampNotReadable(text, topic);
+
         foreach (var node in nodes)
             ProcessNode(received, node);
 
@@ -122,7 +125,10 @@ internal sealed class MqttMessageHandler
     {
         var result = MqttEnvelopeReader.TryRead(child, received.Message, out var value);
 
-        if (result == EnvelopeReadResult.Malformed)
+        // A Timestamp child reads the very property the message itself was read from, which is
+        // reported once when the message arrives. Reporting it here too would say the same thing
+        // twice about one text.
+        if (result == EnvelopeReadResult.Malformed && child.Kind != EnvelopeChildKind.Timestamp)
             _logger.LogEnvelopeValueNotReadable(child.Key, received.Message.Topic);
 
         if (result != EnvelopeReadResult.Read)

@@ -31,6 +31,10 @@
 - Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
   `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
   well as from an integer
+- Read the `Timestamp` of a received message from plain ISO 8601 instead of the round-trip format
+  alone, which demands exactly seven fractional-second digits and so read no publisher but this
+  port, and report a `Timestamp` that cannot be read rather than silently standing the receive time
+  in for a point in time the sender did name
 - Forward the `Timestamp` of a received message as the point in time it names, which was moved by
   the UTC offset of the host whenever the value was published again, and read a `Timestamp` written
   without a time zone as UTC rather than as the local time of the receiving host
