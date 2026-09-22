@@ -19,7 +19,7 @@ using Xunit;
 
 namespace ViciOne.Suite.DataPort;
 
-public class MqttDataPortIncoming_
+public class MqttDataPortIncoming_ctor
 {
     [Fact]
     public async Task DependencyInjectionProviderFactory_can_create_instance_Async()
@@ -42,7 +42,10 @@ public class MqttDataPortIncoming_
 
         instance.Should().NotBeNull().And.BeOfType<MqttDataPortIncoming>();
     }
+}
 
+public class MqttDataPortIncoming_ConnectAsync
+{
     [Fact]
     public async Task Connects_and_disconnects_correctly_Async()
     {
@@ -90,7 +93,10 @@ public class MqttDataPortIncoming_
         await client.Received(1).Unsubscribe("group/value1");
         await client.Received(1).Unsubscribe("group/value2");
     }
+}
 
+public class MqttDataPortIncoming_HandleIncomingValueAsync
+{
     [Fact]
     public async Task Can_receive_group_node_Async()
     {
