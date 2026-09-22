@@ -62,22 +62,25 @@ internal sealed class MqttMessageHandler
             ProcessValue(received, node);
     }
 
+    /// <summary>
+    /// Forwards the value of <paramref name="node"/> followed by its envelope children. A payload
+    /// the configured data type cannot read is forwarded as no value at all rather than as a made-up
+    /// one: it names a sender the port does not speak the same language as, and the default of the
+    /// data type would be indistinguishable from a reading the sender actually took. The envelope
+    /// children are read either way, as each of them carries its own text.
+    /// </summary>
     private void ProcessValue(ReceivedMqttMessage received, INode node)
     {
-        var channel = GetChannel(node, node.AffectedChannels);
-        var valueType = node.ValueType;
-
-        received.Values.Add(TryDeserializePayload(received, node, valueType, out var value)
-            ? new() { Channel = channel, Value = value, Timestamp = received.Timestamp, Validity = received.Validity, }
-            : new() { Channel = channel, Value = InvalidValueOf(valueType), Timestamp = received.Timestamp, Validity = 0, });
+        if (TryDeserializePayload(received, node, node.ValueType, out var value))
+            AddValue(received, node, node.AffectedChannels, value);
 
         AddEnvelopeChildren(received, node);
     }
 
     /// <summary>
-    /// The value an invalid data point is published with. A typed incoming link casts the received
-    /// value to its own type without a null check, so a null would fail the transfer of a value
-    /// type instead of arriving as invalid.
+    /// The value an envelope child that could not be read is forwarded with. A typed incoming link
+    /// casts the received value to its own type without a null check, so a null would fail the
+    /// transfer of a value type instead of arriving as invalid.
     /// </summary>
     private static object? InvalidValueOf(Type? type)
         => type is { IsValueType: true } ? Activator.CreateInstance(type) : null;
@@ -170,9 +173,7 @@ internal sealed class MqttMessageHandler
             var valueType = dataPointNode.ValueType;
 
             if (TryDeserializeMember(received, valueJson, valueType, out var value))
-                AddValue(received, node, dataPointNode.AffectedChannels, value, received.Validity);
-            else
-                AddValue(received, node, dataPointNode.AffectedChannels, InvalidValueOf(valueType), 0);
+                AddValue(received, node, dataPointNode.AffectedChannels, value);
         }
     }
 
@@ -213,13 +214,13 @@ internal sealed class MqttMessageHandler
         }
     }
 
-    private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value, int validity)
+    private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
         => received.Values.Add(new()
         {
             Channel = GetChannel(node, affectedChannels),
             Value = value,
             Timestamp = received.Timestamp,
-            Validity = validity,
+            Validity = received.Validity,
         });
 
     /// <summary>

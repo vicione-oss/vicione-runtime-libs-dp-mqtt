@@ -11,9 +11,9 @@ internal static partial class MqttDataPortIncomingLog
     [LoggerMessage(1, LogLevel.Warning, "Received a message for '{Topic}', which no data point of this data port addresses.")]
     internal static partial void LogUnknownTopic(this ILogger<MqttDataPortIncoming> logger, string topic);
 
-    [LoggerMessage(2, LogLevel.Warning, "Cannot read the payload received on '{Topic}' as '{ValueType}'. The data point is published as invalid.")]
+    [LoggerMessage(2, LogLevel.Warning, "Cannot read the payload received on '{Topic}' as '{ValueType}'. Its value is not forwarded to the engine.")]
     internal static partial void LogPayloadNotReadable(this ILogger<MqttDataPortIncoming> logger, string topic, string valueType, Exception? exception);
 
-    [LoggerMessage(3, LogLevel.Warning, "Cannot read the envelope value '{Key}' of the message on '{Topic}'. The data point is published as invalid.")]
+    [LoggerMessage(3, LogLevel.Warning, "Cannot read the envelope value '{Key}' of the message received on '{Topic}'. It is forwarded to the engine as invalid.")]
     internal static partial void LogEnvelopeValueNotReadable(this ILogger<MqttDataPortIncoming> logger, string key, string topic);
 }

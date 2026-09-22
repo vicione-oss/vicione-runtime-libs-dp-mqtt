@@ -332,6 +332,64 @@ public class MqttDataPortIncoming_
         messages.Should().ContainSingle().Which.Value.Should().BeOfType<int>().And.Be(23);
     }
 
+    /// <summary>
+    /// A member the configured data type cannot read is left out rather than forwarded with the
+    /// default of that type, which would be indistinguishable from a reading the sender took. The
+    /// members around it still reach the engine.
+    /// </summary>
+    [Fact]
+    public async Task Forwards_only_the_members_of_a_group_message_that_can_be_read_Async()
+    {
+        Node groupNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            ParentId = null,
+            TransferredChannels = { "gv1", "gv2", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node value1Node = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value1",
+            ParentId = groupNode.Id,
+            AffectedChannels = { "gv1", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        Node value2Node = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value2",
+            ParentId = groupNode.Id,
+            AffectedChannels = { "gv2", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [groupNode, value1Node, value2Node,],
+            Host = "local",
+        };
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("group")
+            .WithPayload("""
+            {
+                "value1": "not a number",
+                "value2": 23
+            }
+            """)
+            .Build());
+
+        var value = messages.Should().ContainSingle().Which;
+        value.Channel.Should().Be("gv2");
+        value.Value.Should().Be(23);
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("group") && e.Message.Contains("Int32"));
+    }
+
     [Theory]
     [MemberData(nameof(GetSingleNodeVariants))]
     [SuppressMessage("Usage", "xUnit1044:Avoid using TheoryData type arguments that are not serializable",
@@ -695,11 +753,10 @@ public class MqttDataPortIncoming_
             .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
             .Build());
 
-        messages.Should().HaveCount(3);
-        messages[0].Validity.Should().Be(0);
-        messages[0].Value.Should().Be(0L);
-        messages[1].Value.Should().Be(42L);
-        messages[2].Value.Should().Be(s_senderTimestamp);
+        messages.Should().HaveCount(2);
+        messages[0].Channel.Should().Be("batch");
+        messages[0].Value.Should().Be(42L);
+        messages[1].Value.Should().Be(s_senderTimestamp);
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Warning && e.Message.Contains("value"));
     }
@@ -864,7 +921,7 @@ public class MqttDataPortIncoming_
     }
 
     [Fact]
-    public async Task Publishes_an_invalid_value_if_the_payload_cannot_be_read_Async()
+    public async Task Forwards_no_value_if_the_payload_cannot_be_read_Async()
     {
         Node valueNode = new()
         {
@@ -896,10 +953,7 @@ public class MqttDataPortIncoming_
         client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
             string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
 
-        var value = messages.Should().ContainSingle().Which;
-        value.Channel.Should().Be("v");
-        value.Validity.Should().Be(0);
-        value.Value.Should().Be(0L);
+        messages.Should().BeEmpty();
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Warning && e.Message.Contains("value"));
     }

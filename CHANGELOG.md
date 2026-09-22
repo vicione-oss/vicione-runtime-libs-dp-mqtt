@@ -22,8 +22,8 @@
 
 - Skip a message received on a topic no data point addresses, with a warning, instead of failing
   the message and raising an empty batch
-- **Breaking:** Publish a payload that cannot be read as an invalid value instead of dropping the
-  whole received message
+- **Breaking:** Forward no value for a payload that cannot be read, and none for the member of a
+  group message it belongs to, instead of dropping the whole received message
 - Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
   `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
   well as from an integer
