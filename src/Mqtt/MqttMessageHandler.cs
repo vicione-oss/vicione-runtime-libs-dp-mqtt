@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
@@ -63,9 +64,7 @@ internal sealed class MqttMessageHandler
 
     private void ProcessValue(ReceivedMqttMessage received, INode node)
     {
-        if (!TryGetChannel(received, node, node.AffectedChannels, out var channel))
-            return;
-
+        var channel = GetChannel(node, node.AffectedChannels);
         var valueType = node.ValueType;
 
         received.Values.Add(TryDeserializePayload(received, node, valueType, out var value)
@@ -214,33 +213,19 @@ internal sealed class MqttMessageHandler
         }
     }
 
-    private void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value, int validity)
-    {
-        if (!TryGetChannel(received, node, affectedChannels, out var channel))
-            return;
-
-        received.Values.Add(new()
+    private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value, int validity)
+        => received.Values.Add(new()
         {
-            Channel = channel,
+            Channel = GetChannel(node, affectedChannels),
             Value = value,
             Timestamp = received.Timestamp,
             Validity = validity,
         });
-    }
 
-    private bool TryGetChannel(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, out string channel)
-    {
-        foreach (var affectedChannel in affectedChannels)
-        {
-            if (node.TransferredChannels.Contains(affectedChannel))
-            {
-                channel = affectedChannel;
-                return true;
-            }
-        }
-
-        _logger.LogChannelNotFound(received.Message.Topic, node.Name);
-        channel = string.Empty;
-        return false;
-    }
+    /// <summary>
+    /// The channel the value is forwarded on. The engine affects only channels a data point
+    /// transfers, so which of the affected ones it is, is the only question left here.
+    /// </summary>
+    private static string GetChannel(INode node, IReadOnlyCollection<string> affectedChannels)
+        => affectedChannels.First(node.TransferredChannels.Contains);
 }

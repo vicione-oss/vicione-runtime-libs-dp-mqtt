@@ -20,8 +20,8 @@
 
 ### Fixed
 
-- Skip a message received on a topic no data point addresses, or on one whose data point transfers
-  none of its channels, with a warning, instead of failing the message and raising an empty batch
+- Skip a message received on a topic no data point addresses, with a warning, instead of failing
+  the message and raising an empty batch
 - **Breaking:** Publish a payload that cannot be read as an invalid value instead of dropping the
   whole received message
 - Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
