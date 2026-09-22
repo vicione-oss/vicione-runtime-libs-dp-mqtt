@@ -54,13 +54,13 @@ message that declares no validity is valid, and its children are too. A child of
 invalid still carries the value read from it, flagged rather than dropped, so the engine sees the
 reading together with the state its sender gave it. A user property key is matched exactly, the
 reserved keys are matched ignoring case, and every value is read as the data type its child
-declares. A property the message does not carry, or one whose text is not a value of that data
-type, leaves its child invalid; an invalid child carries the default of its data type, because a
-typed incoming link cannot take a null. A payload the configured data type cannot read reaches the
-engine as no value at all, and the member of a group message it belongs to as none either: the
-default of the data type would be indistinguishable from a reading its sender took, and a payload
-that does not fit the type it is configured with names a sender this port does not speak the same
-language as. The envelope children are read all the same, as each of them carries its own text.
+declares. Nothing the message did not carry reaches the engine: a payload the configured data type
+cannot read forwards no value for its data point, nor for the member of a group message it belongs
+to, and a property the message leaves out or writes as a text that is not a value of its child's
+data type forwards no value for that child. The default of a data type would be a reading its
+sender could have taken, so the engine could not tell the two apart from the value alone; the
+channel simply keeps what it had. A payload that cannot be read is still only its own data point's
+business — the envelope children are read all the same, as each of them carries its own text.
 
 A tree the port cannot serve is refused when the port starts rather than failing message by message:
 envelope children on MQTT 3.1.1, a child under another child, a duplicate or reserved key, more than

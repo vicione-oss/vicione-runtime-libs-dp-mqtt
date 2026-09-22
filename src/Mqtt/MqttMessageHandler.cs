@@ -78,21 +78,13 @@ internal sealed class MqttMessageHandler
     }
 
     /// <summary>
-    /// The value an envelope child that could not be read is forwarded with. A typed incoming link
-    /// casts the received value to its own type without a null check, so a null would fail the
-    /// transfer of a value type instead of arriving as invalid.
-    /// </summary>
-    private static object? InvalidValueOf(Type? type)
-        => type is { IsValueType: true } ? Activator.CreateInstance(type) : null;
-
-    /// <summary>
-    /// Publishes one value per envelope child of <paramref name="node"/> that fans out to a value of
-    /// its own, in the order the tree declares them, so a received message reaches the engine as the
-    /// data point and its children together. <see cref="EnvelopeChildKind.Validity"/> and
-    /// <see cref="EnvelopeChildKind.Type"/> are outbound only, so neither is a fan-out target; the
-    /// validity of the received message reaches the engine as the validity of the data point and of
-    /// every child read from it, so a child is never more valid than the message that carried it. A
-    /// message that declares no validity is valid, as it has always been.
+    /// Forwards one value per envelope child of <paramref name="node"/> the message carries a
+    /// readable value for, in the order the tree declares them, so a received message reaches the
+    /// engine as the data point and its children together. <see cref="EnvelopeChildKind.Validity"/>
+    /// and <see cref="EnvelopeChildKind.Type"/> are outbound only, so neither is a fan-out target;
+    /// the validity of the received message reaches the engine as the validity of the data point
+    /// and of every child read from it, so a child is never more valid than the message that
+    /// carried it. A message that declares no validity is valid, as it has always been.
     /// </summary>
     private void AddEnvelopeChildren(ReceivedMqttMessage received, INode node)
     {
@@ -114,6 +106,12 @@ internal sealed class MqttMessageHandler
         }
     }
 
+    /// <summary>
+    /// Forwards the value of <paramref name="child"/> when the message carries one. A key the
+    /// message leaves out, or one whose text is not a value of the child's data type, forwards
+    /// nothing: the default of the data type is a reading the sender could have taken, so the
+    /// engine could not tell the two apart from the value alone.
+    /// </summary>
     private void AddEnvelopeChild(ReceivedMqttMessage received, EnvelopeChild child)
     {
         var result = MqttEnvelopeReader.TryRead(child, received.Message, out var value);
@@ -121,14 +119,15 @@ internal sealed class MqttMessageHandler
         if (result == EnvelopeReadResult.Malformed)
             _logger.LogEnvelopeValueNotReadable(child.Key, received.Message.Topic);
 
-        var read = result == EnvelopeReadResult.Read;
+        if (result != EnvelopeReadResult.Read)
+            return;
 
         received.Values.Add(new()
         {
             Channel = child.Channel,
-            Value = read ? value : InvalidValueOf(child.ValueType),
+            Value = value,
             Timestamp = received.Timestamp,
-            Validity = read ? received.Validity : 0,
+            Validity = received.Validity,
         });
     }
 

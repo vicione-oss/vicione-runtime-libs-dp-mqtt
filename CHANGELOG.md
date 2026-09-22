@@ -24,6 +24,8 @@
   the message and raising an empty batch
 - **Breaking:** Forward no value for a payload that cannot be read, and none for the member of a
   group message it belongs to, instead of dropping the whole received message
+- **Breaking:** Forward no value for an envelope child whose key the message leaves out, or writes
+  as a text that is not a value of the child's data type, instead of the default of that data type
 - Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
   `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
   well as from an integer

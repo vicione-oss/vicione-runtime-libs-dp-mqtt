@@ -700,8 +700,12 @@ public class MqttDataPortIncoming_
             });
     }
 
+    /// <summary>
+    /// The engine keeps whatever it had on that channel. A key the message leaves out is not an
+    /// event, so it is not logged either.
+    /// </summary>
     [Fact]
-    public async Task Publishes_an_envelope_child_without_a_property_as_invalid_Async()
+    public async Task Forwards_no_value_for_an_envelope_child_without_a_property_Async()
     {
         var (communication, _) = CreateTreeWithEnvelopeChildren();
         FakeLogger<MqttDataPortIncoming> logger = new();
@@ -712,16 +716,18 @@ public class MqttDataPortIncoming_
             .WithUserProperty(MqttUserProperties.Timestamp, Encoding.UTF8.GetBytes(s_senderTimestamp.ToString("O")))
             .Build());
 
-        messages.Should().HaveCount(3);
-        var batch = messages[1];
-        batch.Channel.Should().Be("batch");
-        batch.Validity.Should().Be(0);
-        batch.Value.Should().Be(0L);
+        messages.Should().SatisfyRespectively(
+            parent => parent.Channel.Should().Be("v"),
+            sent => sent.Channel.Should().Be("sent"));
         logger.Collector.GetSnapshot().Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Unlike a missing key, a text that is not a value of the child's data type is worth a warning:
+    /// the sender meant to say something the port could not read.
+    /// </summary>
     [Fact]
-    public async Task Publishes_an_unparsable_envelope_child_as_invalid_Async()
+    public async Task Forwards_no_value_for_an_unparsable_envelope_child_Async()
     {
         var (communication, _) = CreateTreeWithEnvelopeChildren();
         FakeLogger<MqttDataPortIncoming> logger = new();
@@ -732,10 +738,9 @@ public class MqttDataPortIncoming_
             .WithUserProperty("batchId", Encoding.UTF8.GetBytes("abc"))
             .Build());
 
-        messages.Should().HaveCount(3);
-        messages[0].Validity.Should().Be(1);
-        messages[1].Channel.Should().Be("batch");
-        messages[1].Validity.Should().Be(0);
+        var parent = messages.Should().ContainSingle().Which;
+        parent.Channel.Should().Be("v");
+        parent.Validity.Should().Be(1);
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Warning && e.Message.Contains("batchId") && e.Message.Contains("value"));
     }
