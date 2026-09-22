@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 using System.Threading.Tasks;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using MQTTnet;
 using MQTTnet.Extensions;
 using MQTTnet.Formatter;
@@ -165,8 +166,9 @@ public class MqttDataPort_
     }
 
     /// <summary>
-    /// The <c>Type</c> child travels outbound only, so the message carries the type of the published
-    /// value while the receiving data point still reads it as the type its own tree declares.
+    /// The <c>Type</c> child carries the type of the published value, and the receiving data point
+    /// reads the payload as it, bounded by the type its own tree declares. A value published as the
+    /// declared type arrives as that type, unchanged by the round trip.
     /// </summary>
     [Fact]
     public async Task Outgoing_is_compatible_with_incoming_with_a_type_child_Async()
@@ -217,6 +219,111 @@ public class MqttDataPort_
         value.Channel.Should().Be("v");
         value.Value.Should().Be(112L);
         value.Value.Should().BeOfType<long>();
+    }
+
+    /// <summary>
+    /// The engine may deliver a narrower primitive than the tree declares, and the outgoing side
+    /// names the runtime type it published — an <c>Int32</c> for an <c>Int64</c> data point. That is
+    /// ordinary traffic between two of these ports: the value arrives as the declared type and
+    /// nothing is logged about it.
+    /// </summary>
+    [Fact]
+    public async Task Outgoing_is_compatible_with_incoming_for_a_narrower_primitive_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(long),
+        };
+        Node typeNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "type",
+            ParentId = valueNode.Id,
+            DesignId = MqttNodeDesignId.Type,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, typeNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = string.Empty,
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+        using var client = CreateLoopbackClient();
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        List<ExternalValue> values = [new() { Channel = "v", Value = 23, Validity = 1, Timestamp = DateTime.UtcNow, },];
+
+        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle().Which.Value.Should().Be(23L);
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// What the <c>Type</c> child is for: a value published as a type derived from the one the tree
+    /// declares arrives with the members the declared type does not know still on it. Without the
+    /// child the payload is read as <see cref="Measurement"/> and <c>Unit</c> is lost, because the
+    /// payload itself carries no type of its own.
+    /// </summary>
+    [Fact]
+    public async Task Outgoing_is_compatible_with_incoming_for_a_derived_value_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(Measurement),
+        };
+        Node typeNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "type",
+            ParentId = valueNode.Id,
+            DesignId = MqttNodeDesignId.Type,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode, typeNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = string.Empty,
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+        using var client = CreateLoopbackClient();
+
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        DetailedMeasurement published = new() { Value = 23, Unit = "bar", };
+        List<ExternalValue> values = [new() { Channel = "v", Value = published, Validity = 1, Timestamp = DateTime.UtcNow, },];
+
+        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<DetailedMeasurement>().And.Be(published);
     }
 
     [Theory]

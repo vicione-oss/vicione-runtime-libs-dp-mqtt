@@ -535,8 +535,12 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         };
     }
 
+    /// <summary>
+    /// The data type its data point declares is the contract, so a sender that names one the
+    /// declared type cannot hold does not get to decide which type this port loads.
+    /// </summary>
     [Fact]
-    public async Task Ignores_the_type_property_a_publisher_declared_Async()
+    public async Task Ignores_a_type_the_declared_one_cannot_hold_Async()
     {
         Node valueNode = new()
         {
@@ -552,8 +556,9 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             Nodes = [valueNode,],
             Host = "local",
         };
+        FakeLogger<MqttDataPortIncoming> logger = new();
 
-        var messages = await ReceiveAsync(communication, new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
             .WithTopic("value")
             .WithPayload("\"23\"")
             .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(int).AssemblyQualifiedName ?? string.Empty))
@@ -562,6 +567,154 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         var value = messages.Should().ContainSingle().Which;
         value.Value.Should().Be("23");
         value.Value.Should().BeOfType<string>();
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The outgoing side names the runtime type of the value it published, which is
+    /// <see cref="object"/> for a null and may be a narrower primitive than the tree declares. Both
+    /// reach a data point whose declared type cannot hold them, and neither is worth a word: the
+    /// declared type is used and nothing is logged.
+    /// </summary>
+    [Theory]
+    [InlineData("System.Object")]
+    [InlineData("System.Int32")]
+    public async Task Reads_a_payload_as_its_declared_type_when_the_named_one_is_no_subtype_Async(string typeName)
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23,"Unit":"bar"}""")
+                .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(Type.GetType(typeName)!.AssemblyQualifiedName!)),
+            logger);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<Measurement>();
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// What carries a derived type across a link of two of these ports: the sender names the type it
+    /// published, and the receiver reads the payload as that type instead of losing the members the
+    /// declared one does not know.
+    /// </summary>
+    [Fact]
+    public async Task Reads_a_payload_as_the_derived_type_its_sender_names_Async()
+    {
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23,"Unit":"bar"}""")
+                .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(DetailedMeasurement).AssemblyQualifiedName!)),
+            new FakeLogger<MqttDataPortIncoming>());
+
+        var value = messages.Should().ContainSingle().Which.Value;
+        value.Should().BeOfType<DetailedMeasurement>().Which.Unit.Should().Be("bar");
+    }
+
+    [Fact]
+    public async Task Reads_a_payload_as_its_declared_type_when_the_message_names_none_Async()
+    {
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23,"Unit":"bar"}"""),
+            new FakeLogger<MqttDataPortIncoming>());
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<Measurement>();
+    }
+
+    [Fact]
+    public async Task Ignores_a_type_no_assembly_of_this_port_knows_Async()
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23,"Unit":"bar"}""")
+                .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes("Nowhere.NoSuchType, Nowhere")),
+            logger);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<Measurement>();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("NoSuchType") && e.Message.Contains("value"));
+    }
+
+    /// <summary>
+    /// The name always comes from a value that existed, so an abstract type is one no port wrote.
+    /// Reading the payload as it would drop the value the declared type could have read.
+    /// </summary>
+    [Fact]
+    public async Task Ignores_an_abstract_type_a_message_names_Async()
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23}""")
+                .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(PartialMeasurement).AssemblyQualifiedName!)),
+            logger);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<Measurement>();
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The shape this is for once a data point may declare a complex data type: the declared type is
+    /// a base no value can have been, and only the name on the wire says which of its subtypes the
+    /// payload is.
+    /// </summary>
+    [Fact]
+    public async Task Reads_a_payload_as_the_subtype_its_sender_names_for_an_abstract_data_type_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(PartialMeasurement),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("""{"Value":23,"Unit":"bar"}""")
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(typeof(CompletedMeasurement).AssemblyQualifiedName!))
+            .Build());
+
+        var value = messages.Should().ContainSingle().Which.Value;
+        value.Should().BeOfType<CompletedMeasurement>().Which.Unit.Should().Be("bar");
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    private static Task<List<ExternalValue>> ReceiveMeasurementAsync(MqttApplicationMessageBuilder message, FakeLogger<MqttDataPortIncoming> logger)
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(Measurement),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        return ReceiveAsync(communication, logger, message.Build());
     }
 
     [Fact]

@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using ViciOne.ManagedEngine.ExternalCommunication;
+using ViciOne.ManagedEngine.TypeResolution;
 
 namespace ViciOne.Suite.DataPort;
 
@@ -14,6 +17,7 @@ internal sealed class MqttMessageHandler
     private readonly Dictionary<string, IReadOnlyCollection<INode>> _nodesByTopic;
     private readonly TimeProvider _timeProvider;
     private readonly JsonSerializerOptions _jsonOptions;
+    private readonly AssemblyLoadContext _loadContext;
     private readonly Serializer _defaultSerializer;
     private readonly EnvelopeChildren _envelopeChildren;
     private readonly ILogger<MqttDataPortIncoming> _logger;
@@ -23,6 +27,7 @@ internal sealed class MqttMessageHandler
         Dictionary<string, IReadOnlyCollection<INode>> nodesByTopic,
         TimeProvider timeProvider,
         JsonSerializerOptions jsonOptions,
+        AssemblyLoadContext loadContext,
         Serializer defaultSerializer,
         EnvelopeChildren envelopeChildren,
         ILogger<MqttDataPortIncoming> logger)
@@ -31,6 +36,7 @@ internal sealed class MqttMessageHandler
         _nodesByTopic = nodesByTopic;
         _timeProvider = timeProvider;
         _jsonOptions = jsonOptions;
+        _loadContext = loadContext;
         _defaultSerializer = defaultSerializer;
         _envelopeChildren = envelopeChildren;
         _logger = logger;
@@ -71,7 +77,7 @@ internal sealed class MqttMessageHandler
     /// </summary>
     private void ProcessValue(ReceivedMqttMessage received, INode node)
     {
-        if (TryDeserializePayload(received, node, node.ValueType, out var value))
+        if (TryDeserializePayload(received, node, ResolveValueType(received, node), out var value))
             AddValue(received, node, node.AffectedChannels, value);
 
         AddEnvelopeChildren(received, node);
@@ -129,6 +135,52 @@ internal sealed class MqttMessageHandler
             Timestamp = received.Timestamp,
             Validity = received.Validity,
         });
+    }
+
+    /// <summary>
+    /// The data type the payload is read as: the one its data point declares, or the more derived
+    /// one the sender named in the <c>Type</c> user property. The declared type stays the contract,
+    /// so a sender may narrow what it sends — which is what carries a derived type across a link of
+    /// two of these ports — but never decide which type this port loads.
+    /// </summary>
+    /// <remarks>
+    /// A name that resolves to something the declared type cannot hold is not worth reporting: the
+    /// outgoing side names the runtime type of the value it published, which is
+    /// <see cref="object"/> for a null and may be a narrower primitive than the tree declares — an
+    /// <c>int</c> for an <c>Int64</c> data point — so a name that is not a subtype is ordinary
+    /// traffic between two of these ports. Neither is an abstract one: the name always comes from a
+    /// value that existed, so an abstract type or an interface was written by no port and could not
+    /// be deserialized into anyway. A name that resolves to nothing at all is the one that says
+    /// something is wrong — the sender knows a type this port does not.
+    /// </remarks>
+    private Type? ResolveValueType(ReceivedMqttMessage received, INode node)
+    {
+        var declared = node.ValueType;
+
+        if (declared is null || received.Message.ReadValueTypeName() is not { } name)
+            return declared;
+
+        if (name == declared.AssemblyQualifiedName)
+            return declared;
+
+        var named = TryResolveType(name);
+
+        if (named is null)
+            _logger.LogNamedValueTypeNotLoadable(name, received.Message.Topic);
+
+        return named is { IsAbstract: false } && declared.IsAssignableFrom(named) ? named : declared;
+    }
+
+    private Type? TryResolveType(string assemblyQualifiedName)
+    {
+        try
+        {
+            return TypeResolver.GetType(assemblyQualifiedName, _loadContext);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or TypeLoadException or IOException or BadImageFormatException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private bool TryDeserializePayload(ReceivedMqttMessage received, INode node, Type? valueType, out object? value)

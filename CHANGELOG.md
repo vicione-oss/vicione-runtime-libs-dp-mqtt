@@ -14,8 +14,10 @@
 - Update `MQTTnet.Extensions` to `1.0.0`
 - **Breaking:** Stop sending `Timestamp`, `Validity` and `Type` implicitly; a message carries
   exactly the envelope children its data point declares
-- **Breaking:** Deserialize a received payload by the data type of its data point instead of the
-  `Type` user property, which is ignored
+- **Breaking:** Read a received payload as the data type its data point is configured with unless
+  the sender names one the configured type can hold, so a publisher may narrow a value to a derived
+  type but no longer decide which type the port loads; a member of a group message is always read
+  as the type its data point declares
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 
 ### Fixed

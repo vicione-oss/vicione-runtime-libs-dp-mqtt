@@ -47,7 +47,7 @@ published value's runtime type — `System.Object` for a null value.
 
 Incoming, a received message is published as the value of its data point followed by one value per
 child that reads a value of its own — only `User property` and `Timestamp` do; `Validity` and `Type`
-travel outbound only and never fan out — in the order the tree declares
+never fan out — in the order the tree declares
 them. The validity of the received message reaches the engine as the validity of the data point and
 of every child read from it, so a child is never more valid than the message that carried it; a
 message that declares no validity is valid, and its children are too. A child of a message declared
@@ -67,5 +67,19 @@ envelope children on MQTT 3.1.1, a child under another child, a duplicate or res
 16 user properties, a parent that transfers no value of its own, and a `User property` whose own transfer is
 not connected — the fixed children need no channel of their own.
 
-The payload of a received message is always read as the data type the data point is configured with;
-a `Type` user property a publisher sent is ignored.
+The payload of a received message is read as the data type its data point is configured with, or as
+the type the sender named in a `Type` user property when the configured type can hold it. That is
+what carries a value of a derived type across a link of two of these ports: the payload itself
+carries no type of its own, so the members the configured type does not know would be lost without
+it. The configured type stays the contract — a sender may narrow what it sends, never widen it and
+never pick a type of its own, so a topic cannot decide which type this port loads. A name the
+configured type cannot hold is read as the configured type without a word, because the port names
+the runtime type it published: `System.Object` for a null value, and a narrower primitive than the
+tree declares whenever the engine delivered one, an `Int32` for an `Int64` data point. An abstract
+type or an interface is ignored the same way — the name comes from a value that existed, so no port
+wrote it. A name no assembly of this port knows is the one that says something is wrong: the sender
+knows a type this port does not, and it is reported as a warning.
+
+A member of a group message is always read as the type its data point declares. A group message
+carries no user properties in either direction, so there is no type on it to read and none to
+write.

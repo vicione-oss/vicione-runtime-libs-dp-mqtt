@@ -26,6 +26,13 @@ internal static class MqttApplicationMessageExtensions
             ? MqttEnvelopeCodec.Parse(property.GetText(), typeof(DateTime)) as DateTime?
             : null;
 
+    /// <summary>
+    /// The assembly-qualified name of the data type the sender named for the payload, or
+    /// <c>null</c> when the message carries none.
+    /// </summary>
+    internal static string? ReadValueTypeName(this MqttApplicationMessage message)
+        => message.UserProperties?.FindOptional(MqttUserProperties.Type)?.GetText();
+
     internal static int GetValidity(this MqttApplicationMessage message)
         => message.UserProperties?.FindOptional(MqttUserProperties.Validity) is { } property
             ? ReadValidity(property.GetText())
