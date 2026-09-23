@@ -31,6 +31,9 @@ internal static class MqttEnvelopeCodec
             bool flag => flag ? TrueText : FalseText,
             long number => number.ToString(CultureInfo.InvariantCulture),
             double number => number.ToString("R", CultureInfo.InvariantCulture),
+            // A date of an unspecified kind means the UTC a received one is read as, not the local
+            // time of whichever host sends it.
+            DateTime { Kind: DateTimeKind.Unspecified } timestamp => FormatTimestamp(DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)),
             DateTime timestamp => FormatTimestamp(timestamp),
             // The engine may deliver a narrower primitive than the tree declares, for instance an
             // int for an Int64 child.

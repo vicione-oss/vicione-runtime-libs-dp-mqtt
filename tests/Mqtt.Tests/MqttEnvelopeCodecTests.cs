@@ -43,6 +43,14 @@ public class MqttEnvelopeCodec_Format
     public void Writes_a_date_in_utc()
         => MqttEnvelopeCodec.Format(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)).Should().Be("2026-03-04T05:06:07.0000000Z");
 
+    /// <summary>
+    /// A received date without a zone is read as UTC, so one the engine wrote without a kind is sent
+    /// as UTC too, instead of moved by the offset of the host. Only a host off UTC can tell.
+    /// </summary>
+    [Fact]
+    public void Writes_a_date_of_unspecified_kind_as_utc()
+        => MqttEnvelopeCodec.Format(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Unspecified)).Should().Be("2026-03-04T05:06:07.0000000Z");
+
     [Fact]
     public void Writes_a_narrower_primitive_than_the_tree_declares()
         => MqttEnvelopeCodec.Format(42).Should().Be("42");

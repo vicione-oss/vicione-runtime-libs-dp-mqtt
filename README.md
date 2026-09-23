@@ -32,7 +32,8 @@ a publisher that is not this port sent is understood as well. A text that is nei
 and the values of the message are forwarded as invalid.
 
 A user property key may not be `Timestamp`, `Validity` or `Type`, and this data port
-puts at most 16 of them on a message.
+puts at most 16 of them on a message. A `DateTime` the engine wrote without a kind is sent as UTC,
+the way a received one without a zone is read.
 
 Envelope children can only be declared under a data point of their own. A folder published as one
 group message carries the envelope it always has: the latest `Timestamp` of its values, the lowest
