@@ -6,6 +6,7 @@
 
 - Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
   `Validity` and `Type` children that travel in the user properties of its message
+- Read a received `Validity` written as `true` or `false`
 
 ### Changed
 
@@ -22,28 +23,14 @@
 
 ### Fixed
 
-- Skip a message received on a topic no data point addresses, with a warning, instead of failing
-  the message and raising an empty batch
-- **Breaking:** Forward no value for a payload that cannot be read, and none for the member of a
-  group message it belongs to, instead of dropping the whole received message
-- **Breaking:** Forward no value for an envelope child whose key the message leaves out, or writes
-  as a text that is not a value of the child's data type, instead of the default of that data type
-- Read the `Timestamp` and the `Validity` of a received message without failing it: an unreadable
-  `Timestamp` falls back to the receive time, and a `Validity` is read from `true` and `false` as
-  well as from an integer
-- Read the `Timestamp` of a received message from plain ISO 8601 instead of the round-trip format
-  alone, which demands exactly seven fractional-second digits and so read no publisher but this
-  port, and report a `Timestamp` that cannot be read rather than silently standing the receive time
-  in for a point in time the sender did name
-- Forward the `Timestamp` of a received message as the point in time it names, which was moved by
-  the UTC offset of the host whenever the value was published again, and read a `Timestamp` written
-  without a time zone as UTC rather than as the local time of the receiving host
-- Read the envelope children of a received message with the validity of the message itself, which
-  they ignored: a message a publisher declared invalid delivered its children as valid, so an
-  engine reading only a child acted on data the sender had marked bad
-- Honour the cancellation of a send cycle, which was carried all the way to the publish and then
-  ignored: no further message is published once the cycle is cancelled, and one the broker never
-  answers is given up on instead of holding the port
+- Skip a message on a topic no data point addresses, with a warning, instead of failing it
+- **Breaking:** Forward the other values of a message when a payload or group member cannot be
+  read, instead of dropping the whole message
+- Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
+- Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
+- Keep the instant of a received `Timestamp`, which moved by the host's UTC offset when republished
+- Read a received `Timestamp` without a time zone as UTC instead of the local time of the host
+- Honour the cancellation of a send cycle: publish nothing further and stop waiting for the broker
 
 ## 1.0.0 - 2026-05-18
 
