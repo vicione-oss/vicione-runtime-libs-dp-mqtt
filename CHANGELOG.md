@@ -22,8 +22,8 @@
 ### Fixed
 
 - Skip a message on a topic no data point addresses, with a warning, instead of failing it
-- **Breaking:** Forward the other values of a message when a payload or group member cannot be
-  read, instead of dropping the whole message
+- Forward the other values of a message when a payload or group member cannot be read, instead of
+  dropping the whole message
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
 - Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
