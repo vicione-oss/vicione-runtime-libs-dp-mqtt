@@ -7,7 +7,6 @@ internal static class MqttUserProperties
 {
     internal const string Timestamp = "Timestamp";
     internal const string Validity = "Validity";
-    internal const string EngineCycle = "EngineCycle";
     internal const string Type = "Type";
 
     internal static string GetText(this MqttUserProperty property)
