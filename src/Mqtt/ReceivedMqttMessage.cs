@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using MQTTnet;
 using MQTTnet.Extensions;
 using ViciOne.ManagedEngine.ExternalCommunication;
@@ -21,7 +22,12 @@ internal sealed class ReceivedMqttMessage
 
         Timestamp = sent ?? timeProvider.GetUtcNow().UtcDateTime;
         UnreadableTimestamp = property is not null && sent is null ? property.GetText() : null;
-        Validity = message.GetValidity();
+
+        var validityProperty = message.UserProperties?.FindOptional(MqttUserProperties.Validity);
+        var validity = validityProperty is null ? null : ReadValidity(validityProperty.GetText());
+
+        Validity = validityProperty is null ? 1 : validity ?? 0;
+        UnreadableValidity = validityProperty is not null && validity is null ? validityProperty.GetText() : null;
     }
 
     internal MqttApplicationMessage Message { get; }
@@ -45,5 +51,27 @@ internal sealed class ReceivedMqttMessage
 
     internal int Validity { get; }
 
+    /// <summary>
+    /// The text of a validity the sender wrote but this port could not read, or <c>null</c> when the
+    /// message carries a readable one or none at all. <see cref="Validity"/> is then 0: a value is
+    /// never read as more valid than its sender may have said.
+    /// </summary>
+    internal string? UnreadableValidity { get; }
+
     internal List<ExternalValue> Values { get; } = [];
+
+    /// <summary>
+    /// The validity the sender put on the message: any integer, of which everything but zero means
+    /// valid, or a boolean, which a sender that is not this port may write instead.
+    /// </summary>
+    private static int? ReadValidity(string text)
+    {
+        if (int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var validity))
+            return validity;
+
+        if (bool.TryParse(text, out var flag))
+            return flag ? 1 : 0;
+
+        return null;
+    }
 }

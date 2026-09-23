@@ -57,6 +57,9 @@ internal sealed class MqttMessageHandler
         if (received.UnreadableTimestamp is { } text)
             _logger.LogTimestampNotReadable(text, topic);
 
+        if (received.UnreadableValidity is { } validity)
+            _logger.LogValidityNotReadable(validity, topic);
+
         foreach (var node in nodes)
             ProcessNode(received, node);
 

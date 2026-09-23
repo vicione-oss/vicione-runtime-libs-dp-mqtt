@@ -25,6 +25,7 @@
 - **Breaking:** Forward the other values of a message when a payload or group member cannot be
   read, instead of dropping the whole message
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
+- Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
 - Keep the instant of a received `Timestamp`, which moved by the host's UTC offset when republished
 - Read a received `Timestamp` without a time zone as UTC instead of the local time of the host

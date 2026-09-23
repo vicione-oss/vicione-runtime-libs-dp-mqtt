@@ -814,7 +814,7 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
 
     /// <summary>
     /// The port sends the engine validity, another sender may write a boolean instead, and a text
-    /// that is neither leaves the value valid.
+    /// that is neither leaves the value invalid.
     /// </summary>
     [Theory]
     [InlineData("1", 1)]
@@ -822,7 +822,8 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
     [InlineData("112", 112)]
     [InlineData("true", 1)]
     [InlineData("FALSE", 0)]
-    [InlineData("maybe", 1)]
+    [InlineData("maybe", 0)]
+    [InlineData("1.0", 0)]
     public async Task Reads_the_validity_of_a_received_message_Async(string text, int expected)
     {
         Node valueNode = new()
@@ -847,6 +848,36 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             .Build());
 
         messages.Should().ContainSingle().Which.Validity.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task Reports_an_unreadable_validity_Async()
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(int),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        await ReceiveAsync(communication, logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("23")
+            .WithUserProperty(MqttUserProperties.Validity, Encoding.UTF8.GetBytes("maybe"))
+            .Build());
+
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("maybe") && e.Message.Contains("value"));
     }
 
     /// <summary>

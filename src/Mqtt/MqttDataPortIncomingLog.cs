@@ -22,4 +22,7 @@ internal static partial class MqttDataPortIncomingLog
 
     [LoggerMessage(5, LogLevel.Warning, "Cannot read '{Timestamp}' as the point in time the message on '{Topic}' was sent at. The time it was received is used instead.")]
     internal static partial void LogTimestampNotReadable(this ILogger<MqttDataPortIncoming> logger, string timestamp, string topic);
+
+    [LoggerMessage(6, LogLevel.Warning, "Cannot read '{Validity}' as the validity of the message on '{Topic}'. Its values are forwarded as invalid.")]
+    internal static partial void LogValidityNotReadable(this ILogger<MqttDataPortIncoming> logger, string validity, string topic);
 }

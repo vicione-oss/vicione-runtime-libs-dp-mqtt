@@ -28,7 +28,8 @@ at deployment.
 
 `Validity` is written as the engine validity itself, the integer the engine gave the value, of which
 everything but `0` means valid. Incoming, the validity is read the same way, and a `true` or `false`
-a publisher that is not this port sent is understood as well.
+a publisher that is not this port sent is understood as well. A text that is neither is reported,
+and the values of the message are forwarded as invalid.
 
 A user property key may not be `Timestamp`, `Validity` or `Type`, and this data port
 puts at most 16 of them on a message.
