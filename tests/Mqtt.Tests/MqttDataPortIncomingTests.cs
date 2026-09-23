@@ -784,6 +784,9 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
     }
 
     private static Task<List<ExternalValue>> ReceiveMeasurementAsync(MqttApplicationMessageBuilder message, FakeLogger<MqttDataPortIncoming> logger)
+        => ReceiveAsync(CreateMeasurementTree(), logger, message.Build());
+
+    private static MqttDataPortCommunication CreateMeasurementTree()
     {
         Node valueNode = new()
         {
@@ -794,13 +797,12 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             DesignId = MqttNodeDesignId.Topic,
             ValueType = typeof(Measurement),
         };
-        MqttDataPortCommunication communication = new()
+
+        return new()
         {
             Nodes = [valueNode,],
             Host = "local",
         };
-
-        return ReceiveAsync(communication, logger, message.Build());
     }
 
     [Fact]
@@ -908,6 +910,37 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Warning && e.Message.Contains("maybe") && e.Message.Contains("value"));
     }
+
+    /// <summary>
+    /// A sender that keeps writing the same unreadable text is one problem, not one per message, and
+    /// a warning per message would drown the log it is meant to stand out in.
+    /// </summary>
+    [Theory]
+    [InlineData(MqttUserProperties.Timestamp, "the day before", "the day after")]
+    [InlineData(MqttUserProperties.Validity, "maybe", "perhaps")]
+    [InlineData(MqttUserProperties.Type, "Nowhere.NoSuchType, Nowhere", "Nowhere.OtherType, Nowhere")]
+    public async Task Reports_an_unreadable_text_once_Async(string key, string text, string otherText)
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        await ReceiveAsync(
+            CreateMeasurementTree(),
+            logger,
+            MeasurementWith(key, text),
+            MeasurementWith(key, text),
+            MeasurementWith(key, otherText));
+
+        logger.Collector.GetSnapshot().Should().SatisfyRespectively(
+            first => first.Message.Should().Contain(text),
+            other => other.Message.Should().Contain(otherText));
+    }
+
+    private static MqttApplicationMessage MeasurementWith(string key, string text)
+        => new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload("""{"Value":23,"Unit":"bar"}""")
+            .WithUserProperty(key, Encoding.UTF8.GetBytes(text))
+            .Build();
 
     /// <summary>
     /// A Timestamp that is not a round-trip formatted point in time no longer tears the message
@@ -1280,7 +1313,7 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         return (communication, valueNode);
     }
 
-    private static async Task<List<ExternalValue>> ReceiveAsync(MqttDataPortCommunication communication, ILogger<MqttDataPortIncoming> logger, MqttApplicationMessage message)
+    private static async Task<List<ExternalValue>> ReceiveAsync(MqttDataPortCommunication communication, ILogger<MqttDataPortIncoming> logger, params MqttApplicationMessage[] received)
     {
         var client = Substitute.For<IVirtualMqttClient>();
         using MqttDataPortIncoming incoming = new(communication, client, logger, AssemblyLoadContext.Default, TimeProvider.System);
@@ -1288,8 +1321,11 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         List<ExternalValue> messages = [];
         incoming.Received += messages.AddRange;
 
-        client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
-            string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+        foreach (var message in received)
+        {
+            client.MessageReceived += Raise.Event<Func<MqttApplicationMessageReceivedEventArgs, Task>>(new MqttApplicationMessageReceivedEventArgs(
+                string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
+        }
 
         return messages;
     }

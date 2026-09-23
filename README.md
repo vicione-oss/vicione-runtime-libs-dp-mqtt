@@ -69,6 +69,9 @@ sender could have taken, so the engine could not tell the two apart from the val
 channel simply keeps what it had. A payload that cannot be read is still only its own data point's
 business — the envelope children are read all the same, as each of them carries its own text.
 
+Whatever a sender wrote that this port cannot read is reported once per text and topic, not once per
+message, so a sender that keeps writing it does not drown the log in the same warning.
+
 A tree the port cannot serve is refused when the port starts rather than failing message by message:
 envelope children on MQTT 3.1.1, a child under another child, a duplicate or reserved key, more than
 16 user properties, a parent that transfers no value of its own, and a `User property` whose own transfer is

@@ -16,6 +16,7 @@ internal sealed class MqttMessageHandler
     private readonly TimeProvider _timeProvider;
     private readonly JsonSerializerOptions _jsonOptions;
     private readonly NamedTypeResolver _namedTypes;
+    private readonly DistinctReports _reports = new();
     private readonly Serializer _defaultSerializer;
     private readonly EnvelopeChildren _envelopeChildren;
     private readonly ILogger<MqttDataPortIncoming> _logger;
@@ -52,10 +53,10 @@ internal sealed class MqttMessageHandler
 
         ReceivedMqttMessage received = new(eventArgs.ApplicationMessage, _timeProvider);
 
-        if (received.UnreadableTimestamp is { } text)
+        if (received.UnreadableTimestamp is { } text && _reports.IsFirst(MqttUserProperties.Timestamp, topic, text))
             _logger.LogTimestampNotReadable(text, topic);
 
-        if (received.UnreadableValidity is { } validity)
+        if (received.UnreadableValidity is { } validity && _reports.IsFirst(MqttUserProperties.Validity, topic, validity))
             _logger.LogValidityNotReadable(validity, topic);
 
         foreach (var node in nodes)
@@ -130,7 +131,7 @@ internal sealed class MqttMessageHandler
         // reported once when the message arrives. Reporting it here too would say the same thing
         // twice about one text.
         if (result == EnvelopeReadResult.Malformed && child.Kind != EnvelopeChildKind.Timestamp)
-            _logger.LogEnvelopeValueNotReadable(child.Key, received.Message.Topic);
+            ReportEnvelopeValueNotReadable(received.Message.Topic, child.Key);
 
         if (result != EnvelopeReadResult.Read)
             return;
@@ -171,7 +172,7 @@ internal sealed class MqttMessageHandler
 
         var named = _namedTypes.Resolve(name);
 
-        if (named is null)
+        if (named is null && _reports.IsFirst(MqttUserProperties.Type, topic, name))
             _logger.LogNamedValueTypeNotLoadable(name, topic);
 
         return named is { IsAbstract: false } && declared.IsAssignableFrom(named) ? named : declared;
@@ -183,7 +184,7 @@ internal sealed class MqttMessageHandler
 
         if (valueType is null)
         {
-            _logger.LogPayloadNotReadable(received.Message.Topic, "unknown", null);
+            ReportPayloadNotReadable(received.Message.Topic, "unknown", null);
             return false;
         }
 
@@ -195,7 +196,7 @@ internal sealed class MqttMessageHandler
         }
         catch (Exception ex)
         {
-            _logger.LogPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
+            ReportPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
             return false;
         }
     }
@@ -234,7 +235,7 @@ internal sealed class MqttMessageHandler
         }
         catch (JsonException ex)
         {
-            _logger.LogPayloadNotReadable(received.Message.Topic, "JSON", ex);
+            ReportPayloadNotReadable(received.Message.Topic, "JSON", ex);
             jsonMessage = null;
             return false;
         }
@@ -246,7 +247,7 @@ internal sealed class MqttMessageHandler
 
         if (valueType is null)
         {
-            _logger.LogPayloadNotReadable(received.Message.Topic, "unknown", null);
+            ReportPayloadNotReadable(received.Message.Topic, "unknown", null);
             return false;
         }
 
@@ -257,9 +258,21 @@ internal sealed class MqttMessageHandler
         }
         catch (Exception ex)
         {
-            _logger.LogPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
+            ReportPayloadNotReadable(received.Message.Topic, valueType.Name, ex);
             return false;
         }
+    }
+
+    private void ReportEnvelopeValueNotReadable(string topic, string key)
+    {
+        if (_reports.IsFirst(nameof(ReportEnvelopeValueNotReadable), topic, key))
+            _logger.LogEnvelopeValueNotReadable(key, topic);
+    }
+
+    private void ReportPayloadNotReadable(string topic, string valueType, Exception? exception)
+    {
+        if (_reports.IsFirst(nameof(ReportPayloadNotReadable), topic, valueType))
+            _logger.LogPayloadNotReadable(topic, valueType, exception);
     }
 
     private static void AddValue(ReceivedMqttMessage received, INode node, IReadOnlyCollection<string> affectedChannels, object? value)
