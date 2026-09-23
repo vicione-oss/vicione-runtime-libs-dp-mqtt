@@ -282,12 +282,12 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
     }
 
     /// <summary>
-    /// A member of a group message is read as the data type its data point is configured with, the
-    /// same as a message of its own. The type a publisher declares is not consulted, so a topic
-    /// cannot decide which type the port loads.
+    /// A member of a group message is read like a message of its own: the name its entry in the
+    /// <c>Type</c> of the message gives is used only when it is a subtype of the declared data type,
+    /// so a topic cannot decide which type the port loads.
     /// </summary>
     [Fact]
-    public async Task Ignores_the_type_a_publisher_declares_for_a_group_member_Async()
+    public async Task Reads_a_group_member_as_its_declared_type_when_the_named_one_is_no_subtype_Async()
     {
         Node groupNode = new()
         {
@@ -336,6 +336,63 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             string.Empty, message, new(), (_1, _2) => Task.CompletedTask));
 
         messages.Should().ContainSingle().Which.Value.Should().BeOfType<int>().And.Be(23);
+    }
+
+    [Fact]
+    public async Task Reads_a_group_member_as_the_derived_type_its_sender_names_Async()
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveGroupOfOneAsync(typeof(Measurement), logger, new MqttApplicationMessageBuilder()
+            .WithPayload("""{"value":{"Value":23,"Unit":"bar"}}""")
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes($$"""{"value":"{{typeof(DetailedMeasurement).AssemblyQualifiedName}}"}""")));
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<DetailedMeasurement>().Which.Unit.Should().Be("bar");
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("System.Int64")]
+    [InlineData("[]")]
+    [InlineData("{")]
+    [InlineData("""{"value":42}""")]
+    public async Task Reads_a_group_member_as_its_declared_type_when_the_type_names_none_for_it_Async(string type)
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveGroupOfOneAsync(typeof(int), logger, new MqttApplicationMessageBuilder()
+            .WithPayload("""{"value":23}""")
+            .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes(type)));
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<int>().And.Be(23);
+        logger.Collector.GetSnapshot().Should().BeEmpty();
+    }
+
+    private static Task<List<ExternalValue>> ReceiveGroupOfOneAsync(Type valueType, FakeLogger<MqttDataPortIncoming> logger, MqttApplicationMessageBuilder message)
+    {
+        Node groupNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            TransferredChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            ParentId = groupNode.Id,
+            AffectedChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = valueType,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [groupNode, valueNode,],
+            Host = "local",
+        };
+
+        return ReceiveAsync(communication, logger, message.WithTopic("group").Build());
     }
 
     /// <summary>

@@ -329,6 +329,56 @@ public class MqttDataPort_
         messages.Should().ContainSingle().Which.Value.Should().BeOfType<DetailedMeasurement>().And.Be(published);
     }
 
+    /// <summary>
+    /// The same for a member of a group message, whose type travels in the <c>Type</c> of the group
+    /// message rather than in a child of its own.
+    /// </summary>
+    [Fact]
+    public async Task Outgoing_is_compatible_with_incoming_for_a_derived_group_member_Async()
+    {
+        Node groupNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            TransferredChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            ParentId = groupNode.Id,
+            AffectedChannels = { "gv", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = typeof(Measurement),
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [groupNode, valueNode,],
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = string.Empty,
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+        using var client = CreateLoopbackClient();
+
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        using MqttDataPortIncoming incoming = new(communication, client, Substitute.For<ILogger<MqttDataPortIncoming>>(), AssemblyLoadContext.Default, TimeProvider.System);
+        await incoming.ConnectAsync(TestContext.Current.CancellationToken);
+
+        List<ExternalValue> messages = [];
+        incoming.Received += messages.AddRange;
+
+        DetailedMeasurement published = new() { Value = 23, Unit = "bar", };
+        List<ExternalValue> values = [new() { Channel = "gv", Value = published, Validity = 1, Timestamp = DateTime.UtcNow, },];
+
+        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<DetailedMeasurement>().And.Be(published);
+    }
+
     [Theory]
     [InlineData(0, "Test")]
     [InlineData(1, "Test")]

@@ -80,7 +80,7 @@ internal sealed class MqttMessageHandler
     /// </summary>
     private void ProcessValue(ReceivedMqttMessage received, INode node)
     {
-        if (TryDeserializePayload(received, node, ResolveValueType(received, node), out var value))
+        if (TryDeserializePayload(received, node, ResolveValueType(node.ValueType, received.Message.ReadValueTypeName(), received.Message.Topic), out var value))
             AddValue(received, node, node.AffectedChannels, value);
 
         AddEnvelopeChildren(received, node);
@@ -144,7 +144,7 @@ internal sealed class MqttMessageHandler
     }
 
     /// <summary>
-    /// The data type the payload is read as: the one its data point declares, or the more derived
+    /// The data type a value is read as: the one its data point declares, or the more derived
     /// one the sender named in the <c>Type</c> user property. The declared type stays the contract,
     /// so a sender may narrow what it sends — which is what carries a derived type across a link of
     /// two of these ports — but never decide which type this port loads.
@@ -159,11 +159,9 @@ internal sealed class MqttMessageHandler
     /// be deserialized into anyway. A name that resolves to nothing at all is the one that says
     /// something is wrong — the sender knows a type this port does not.
     /// </remarks>
-    private Type? ResolveValueType(ReceivedMqttMessage received, INode node)
+    private Type? ResolveValueType(Type? declared, string? name, string topic)
     {
-        var declared = node.ValueType;
-
-        if (declared is null || received.Message.ReadValueTypeName() is not { } name)
+        if (declared is null || name is null)
             return declared;
 
         if (name == declared.AssemblyQualifiedName)
@@ -172,7 +170,7 @@ internal sealed class MqttMessageHandler
         var named = TryResolveType(name);
 
         if (named is null)
-            _logger.LogNamedValueTypeNotLoadable(name, received.Message.Topic);
+            _logger.LogNamedValueTypeNotLoadable(name, topic);
 
         return named is { IsAbstract: false } && declared.IsAssignableFrom(named) ? named : declared;
     }
@@ -217,6 +215,8 @@ internal sealed class MqttMessageHandler
         if (!TryReadPayloadAsJson(received, out var jsonMessage))
             return;
 
+        var memberTypeNames = received.Message.ReadMemberTypeNames();
+
         foreach (var route in routes)
         {
             var dataPointNode = route[^1];
@@ -225,14 +225,15 @@ internal sealed class MqttMessageHandler
             if (valueJson is null)
                 continue;
 
-            // The data type its data point is configured with, never the one the publisher declares:
-            // a member of a group message is read exactly as a message of its own would be.
-            var valueType = dataPointNode.ValueType;
+            var valueType = ResolveValueType(dataPointNode.ValueType, ReadMemberTypeName(route, memberTypeNames), received.Message.Topic);
 
             if (TryDeserializeMember(received, valueJson, valueType, out var value))
                 AddValue(received, node, dataPointNode.AffectedChannels, value);
         }
     }
+
+    private static string? ReadMemberTypeName(INode[] route, JsonObject? memberTypeNames)
+        => NodeValueFactory.GetValueJsonNode(route, memberTypeNames) is JsonValue entry && entry.TryGetValue(out string? name) ? name : null;
 
     private bool TryReadPayloadAsJson(ReceivedMqttMessage received, out JsonNode? jsonMessage)
     {

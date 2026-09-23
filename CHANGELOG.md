@@ -15,10 +15,8 @@
 - Update `MQTTnet.Extensions` to `1.0.0`
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
-- **Breaking:** Read a received payload as the data type its data point is configured with unless
-  the sender names one the configured type can hold, so a publisher may narrow a value to a derived
-  type but no longer decide which type the port loads; a member of a group message is always read
-  as the type its data point declares
+- **Breaking:** Read a received payload or group member as its configured data type, or as a
+  subtype the sender names in `Type`, so a publisher can no longer decide which type the port loads
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 
 ### Fixed

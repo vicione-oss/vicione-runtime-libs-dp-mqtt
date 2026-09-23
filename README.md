@@ -86,5 +86,5 @@ type or an interface is ignored the same way — the name comes from a value tha
 wrote it. A name no assembly of this port knows is the one that says something is wrong: the sender
 knows a type this port does not, and it is reported as a warning.
 
-A member of a group message is always read as the type its data point declares, whatever the
-`Type` of the group message names for it.
+A member of a group message is read the same way, with the name taken from its entry in the `Type`
+of the group message, which maps each member to the data type the sender published.

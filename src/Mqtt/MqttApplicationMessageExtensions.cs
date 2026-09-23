@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using MQTTnet;
 using MQTTnet.Extensions;
@@ -16,6 +17,25 @@ internal static class MqttApplicationMessageExtensions
     /// </summary>
     internal static string? ReadValueTypeName(this MqttApplicationMessage message)
         => message.UserProperties?.FindOptional(MqttUserProperties.Type)?.GetText();
+
+    /// <summary>
+    /// The data type names the sender put on the members of a group message, shaped like its
+    /// payload, or <c>null</c> when the message carries no such map.
+    /// </summary>
+    internal static JsonObject? ReadMemberTypeNames(this MqttApplicationMessage message)
+    {
+        if (message.UserProperties?.FindOptional(MqttUserProperties.Type) is not { } property)
+            return null;
+
+        try
+        {
+            return JsonNode.Parse(property.GetText()) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
 
     internal static int GetValidity(this MqttApplicationMessage message)
         => message.UserProperties?.FindOptional(MqttUserProperties.Validity) is { } property
