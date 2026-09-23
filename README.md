@@ -84,8 +84,10 @@ configured type cannot hold is read as the configured type without a word, becau
 the runtime type it published: `System.Object` for a null value, and a narrower primitive than the
 tree declares whenever the engine delivered one, an `Int32` for an `Int64` data point. An abstract
 type or an interface is ignored the same way — the name comes from a value that existed, so no port
-wrote it. A name no assembly of this port knows is the one that says something is wrong: the sender
-knows a type this port does not, and it is reported as a warning.
+wrote it. A name is looked up only among the assemblies this port has loaded already, so it never
+makes one load, and each name is looked up once. A name no loaded assembly knows is the one that
+says something is wrong: the sender knows a type this port does not, and it is reported as a
+warning.
 
 A member of a group message is read the same way, with the name taken from its entry in the `Type`
 of the group message, which maps each member to the data type the sender published.

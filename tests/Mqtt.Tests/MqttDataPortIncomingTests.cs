@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.Loader;
 using System.Text;
 using System.Threading.Tasks;
@@ -698,6 +699,34 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
         logger.Collector.GetSnapshot().Should().ContainSingle(e =>
             e.Level == LogLevel.Warning && e.Message.Contains("NoSuchType") && e.Message.Contains("value"));
     }
+
+    /// <summary>
+    /// The name comes off the broker, so it must not make the port load an assembly: a type counts
+    /// only if its assembly is loaded already, and the one named here is part of the framework but
+    /// nothing in this process uses it.
+    /// </summary>
+    [Fact]
+    public async Task Loads_no_assembly_a_message_names_Async()
+    {
+        const string TarAssembly = "System.Formats.Tar";
+        Assert.SkipWhen(IsLoaded(TarAssembly), $"{TarAssembly} is loaded already, so the test cannot tell.");
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveMeasurementAsync(
+            new MqttApplicationMessageBuilder()
+                .WithTopic("value")
+                .WithPayload("""{"Value":23,"Unit":"bar"}""")
+                .WithUserProperty(MqttUserProperties.Type, Encoding.UTF8.GetBytes($"System.Formats.Tar.PaxTarEntry, {TarAssembly}")),
+            logger);
+
+        messages.Should().ContainSingle().Which.Value.Should().BeOfType<Measurement>();
+        IsLoaded(TarAssembly).Should().BeFalse();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("PaxTarEntry"));
+    }
+
+    private static bool IsLoaded(string assemblyName)
+        => AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetName().Name == assemblyName);
 
     /// <summary>
     /// The name always comes from a value that existed, so an abstract type is one no port wrote.

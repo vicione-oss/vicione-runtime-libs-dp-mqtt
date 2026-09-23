@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Runtime.Loader;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Logging;
 using ViciOne.ManagedEngine.ExternalCommunication;
-using ViciOne.ManagedEngine.TypeResolution;
 
 namespace ViciOne.Suite.DataPort;
 
@@ -17,7 +15,7 @@ internal sealed class MqttMessageHandler
     private readonly Dictionary<string, IReadOnlyCollection<INode>> _nodesByTopic;
     private readonly TimeProvider _timeProvider;
     private readonly JsonSerializerOptions _jsonOptions;
-    private readonly AssemblyLoadContext _loadContext;
+    private readonly NamedTypeResolver _namedTypes;
     private readonly Serializer _defaultSerializer;
     private readonly EnvelopeChildren _envelopeChildren;
     private readonly ILogger<MqttDataPortIncoming> _logger;
@@ -36,7 +34,7 @@ internal sealed class MqttMessageHandler
         _nodesByTopic = nodesByTopic;
         _timeProvider = timeProvider;
         _jsonOptions = jsonOptions;
-        _loadContext = loadContext;
+        _namedTypes = new(loadContext);
         _defaultSerializer = defaultSerializer;
         _envelopeChildren = envelopeChildren;
         _logger = logger;
@@ -150,7 +148,8 @@ internal sealed class MqttMessageHandler
     /// The data type a value is read as: the one its data point declares, or the more derived
     /// one the sender named in the <c>Type</c> user property. The declared type stays the contract,
     /// so a sender may narrow what it sends — which is what carries a derived type across a link of
-    /// two of these ports — but never decide which type this port loads.
+    /// two of these ports — but never decide which type this port loads: a named type counts only if
+    /// its assembly is loaded already.
     /// </summary>
     /// <remarks>
     /// A name that resolves to something the declared type cannot hold is not worth reporting: the
@@ -170,24 +169,12 @@ internal sealed class MqttMessageHandler
         if (name == declared.AssemblyQualifiedName)
             return declared;
 
-        var named = TryResolveType(name);
+        var named = _namedTypes.Resolve(name);
 
         if (named is null)
             _logger.LogNamedValueTypeNotLoadable(name, topic);
 
         return named is { IsAbstract: false } && declared.IsAssignableFrom(named) ? named : declared;
-    }
-
-    private Type? TryResolveType(string assemblyQualifiedName)
-    {
-        try
-        {
-            return TypeResolver.GetType(assemblyQualifiedName, _loadContext);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or TypeLoadException or IOException or BadImageFormatException or ArgumentException)
-        {
-            return null;
-        }
     }
 
     private bool TryDeserializePayload(ReceivedMqttMessage received, INode node, Type? valueType, out object? value)
