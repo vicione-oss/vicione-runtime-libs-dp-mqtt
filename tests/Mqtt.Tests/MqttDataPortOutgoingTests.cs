@@ -77,8 +77,8 @@ public class MqttDataPortOutgoing_ctor
     }
 
     /// <summary>
-    /// A folder published as one group message has no envelope, so a child under one of its data
-    /// points could never be published. A data point in a group transfers no value of its own —
+    /// A data point of a folder published as one group message has no message of its own, so a
+    /// child under it could never be published. Such a data point transfers no value of its own —
     /// its folder does — which is the shape the port already refuses.
     /// </summary>
     [Fact]
@@ -361,33 +361,6 @@ public class MqttDataPortOutgoing_SendAsync
     }
 
     [Fact]
-    public async Task Publishes_a_folder_group_without_an_envelope_Async()
-    {
-        Node folderNode = new()
-        {
-            Id = Guid.NewGuid(),
-            Name = "group",
-            DesignId = MqttNodeDesignId.Topic,
-            TransferredChannels = { "g", },
-        };
-        Node valueNode = new()
-        {
-            Id = Guid.NewGuid(),
-            ParentId = folderNode.Id,
-            Name = "value",
-            DesignId = MqttNodeDesignId.Topic,
-            AffectedChannels = { "g", },
-        };
-        List<MqttApplicationMessage> messages = [];
-        using var client = CreateRecordingClient(messages);
-        using MqttDataPortOutgoing outgoing = new(CreateCommunication([folderNode, valueNode,]), client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
-
-        await outgoing.SendAsync(1, [Value("g", 21.5),], TestContext.Current.CancellationToken);
-
-        UserProperties(messages.Should().ContainSingle().Which).Should().BeEmpty();
-    }
-
-    [Fact]
     public async Task Publishes_the_cycles_in_the_order_they_arrived_Async()
     {
         TaskCompletionSource gate = new();
@@ -633,7 +606,17 @@ public class MqttDataPortOutgoing_SendAsync
 
         var message = messages.Should().ContainSingle().Which;
         message.Topic.Should().Be("group");
-        message.UserProperties.Should().BeNullOrEmpty();
+        Encoding.UTF8.GetString(message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Type).Which.ValueBuffer.Span).Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$""""
+        {
+            "value1": "{{typeof(int).AssemblyQualifiedName}}",
+            "subgroup": {
+                "value2": "{{typeof(int).AssemblyQualifiedName}}",
+                "value3": "{{typeof(object).AssemblyQualifiedName}}"
+            }
+        }
+        """")));
+        message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Timestamp).Which.GetDateTime().Should().Be(new(2023, 1, 1, 0, 10, 0, DateTimeKind.Utc));
+        message.UserProperties.Should().Contain(p => p.Name == MqttUserProperties.Validity).Which.Get<int>().Should().Be(25);
         message.ConvertPayloadToString().Should().Be(JsonSerializer.Serialize(JsonDocument.Parse($$"""
         {
             "value1": 23,
@@ -955,9 +938,54 @@ public class MqttDataPortOutgoing_SendAsync
 
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
-        messages.Should()
-            .ContainSingle()
-            .Which.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
+        var message = messages.Should().ContainSingle().Which;
+        message.ConvertPayloadToString().Should().Be("{\"myValue\":{\"Test\":112}}");
+        message.UserProperties.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Can_send_group_node_with_type_Async()
+    {
+        Node parentNode = new()
+        {
+            Name = "parent",
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = parentNode.Id,
+            Name = "myValue",
+            AffectedChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+        };
+        MqttDataPortCommunication communication = new()
+        {
+            Nodes = [parentNode, valueNode,],
+            Host = "local",
+        };
+        _ = new MqttDataPortProperties(communication)
+        {
+            ProtocolVersion = MqttProtocolVersion.V500,
+        };
+        List<MqttApplicationMessage> messages = [];
+        var client = Substitute.For<IVirtualMqttClient>();
+        await client.Publish(Arg.Do<MqttApplicationMessage>(messages.Add));
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+        List<ExternalValue> values =
+        [
+            new()
+            {
+                Channel = "v",
+                Value = new JsonObject() { { "Test", 112 }, },
+            },
+        ];
+
+        await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
+
+        var json = Encoding.UTF8.GetString(messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.ValueBuffer.Span);
+        JsonNode.Parse(json)!["myValue"]!.GetValue<string>().Should().Be(typeof(JsonObject).AssemblyQualifiedName!);
     }
 
     internal static MqttDataPortCommunication CreateTreeWithOneChild()

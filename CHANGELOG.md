@@ -13,8 +13,8 @@
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `1.0.0`
-- **Breaking:** Stop sending `Timestamp`, `Validity` and `Type` implicitly; a message carries
-  exactly the envelope children its data point declares
+- **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
+  declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload as the data type its data point is configured with unless
   the sender names one the configured type can hold, so a publisher may narrow a value to a derived
   type but no longer decide which type the port loads; a member of a group message is always read

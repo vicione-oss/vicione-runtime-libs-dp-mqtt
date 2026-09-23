@@ -140,7 +140,15 @@ internal sealed class MqttTreeHandlerOutgoing : UnspecificTreeHandlerOutgoing<Mq
     {
         var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
         var payload = JsonSerializer.SerializeToUtf8Bytes(data);
-        return CreateDefaultBuilder(node, serializer, payload);
+        var builder = CreateDefaultBuilder(node, serializer, payload);
+        // A folder cannot declare envelope children, so its message keeps the envelope 1.0.0 sent.
+        if (_supportsExtendedProtocol)
+        {
+            AddProperty(builder, MqttUserProperties.Timestamp, MqttEnvelopeCodec.FormatTimestamp(values.Max(v => v.Timestamp)));
+            AddProperty(builder, MqttUserProperties.Validity, MqttEnvelopeCodec.FormatValidity(values.Min(v => v.Validity)));
+            AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta));
+        }
+        return builder;
     }
 
     protected override MqttApplicationMessageBuilder HandleSingleNode(INode node, ExternalValue value)

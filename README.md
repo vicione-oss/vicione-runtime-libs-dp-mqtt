@@ -34,7 +34,8 @@ A user property key may not be `Timestamp`, `Validity` or `Type`, and this data 
 puts at most 16 of them on a message.
 
 Envelope children can only be declared under a data point of their own. A folder published as one
-group message carries no user properties at all, not even a timestamp or a validity.
+group message carries the envelope it always has: the latest `Timestamp` of its values, the lowest
+`Validity`, and a `Type` that names the data type of each member.
 
 Outgoing, a child never produces a message of its own: its last value is remembered and put on the
 next message of its parent, whatever the validity that value was written with. The keys a message
@@ -85,6 +86,5 @@ type or an interface is ignored the same way — the name comes from a value tha
 wrote it. A name no assembly of this port knows is the one that says something is wrong: the sender
 knows a type this port does not, and it is reported as a warning.
 
-A member of a group message is always read as the type its data point declares. A group message
-carries no user properties in either direction, so there is no type on it to read and none to
-write.
+A member of a group message is always read as the type its data point declares, whatever the
+`Type` of the group message names for it.

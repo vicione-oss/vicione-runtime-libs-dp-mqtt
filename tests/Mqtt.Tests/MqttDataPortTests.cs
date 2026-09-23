@@ -80,9 +80,12 @@ public class MqttDataPort_
 
         await outgoing.SendAsync(0, values, TestContext.Current.CancellationToken);
 
+        // The group message carries its envelope; the data point declares no children, so its own message carries none.
         messages.Should().HaveCount(2);
-        messages.Should().BeEquivalentTo(values, o => o.Excluding(v => v.Timestamp).Excluding(v => v.Validity));
-        messages.Should().AllSatisfy(m => m.Validity.Should().Be(1));
+        messages.Should().ContainSingle(m => m.Channel == "gv").Which.Should().BeEquivalentTo(values[0]);
+        var single = messages.Should().ContainSingle(m => m.Channel == "v").Which;
+        single.Should().BeEquivalentTo(values[1], o => o.Excluding(v => v.Timestamp).Excluding(v => v.Validity));
+        single.Validity.Should().Be(1);
     }
 
     [Fact]
