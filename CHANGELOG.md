@@ -2,11 +2,34 @@
 
 ## Next
 
+### Added
+
+- Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
+  `Validity` and `Type` children that travel in the user properties of its message
+- Read a received `Validity` written as `true` or `false`
+
 ### Changed
 
-- Update `.yaml` files format to `2.0.0` (`ViciOne.TreeBuilder`)
+- Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `1.0.0`
+- **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
+  declares them as envelope children; a group message still carries all three
+- **Breaking:** Read a received payload or group member as its configured data type, or as a
+  subtype the sender names in `Type`, so a publisher can no longer decide which type the port loads
+- Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
+
+### Fixed
+
+- Skip a message on a topic no data point addresses, with a warning, instead of failing it
+- Forward the other values of a message when a payload or group member cannot be read, instead of
+  dropping the whole message
+- Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
+- Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
+- Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
+- Keep the instant of a received `Timestamp`, which moved by the host's UTC offset when republished
+- Read a received `Timestamp` without a time zone as UTC instead of the local time of the host
+- Honour the cancellation of a send cycle: publish nothing further and stop waiting for the broker
 
 ## 1.0.0 - 2026-05-18
 

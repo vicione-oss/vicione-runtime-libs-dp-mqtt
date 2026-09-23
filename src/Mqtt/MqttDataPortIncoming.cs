@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Loader;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MQTTnet.Extensions;
+using MQTTnet.Formatter;
 using MQTTnet.Protocol;
 using ViciOne.ManagedEngine.ExternalCommunication;
 
@@ -15,14 +15,11 @@ namespace ViciOne.Suite.DataPort;
 public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDataPortCommunication>, IDisposable
 {
     private readonly MqttDataPortCommunication _communication;
-    private readonly Serializer _defaultSerializer;
     private readonly IVirtualMqttClient _client;
     private readonly ILogger<MqttDataPortIncoming> _logger;
-    private readonly TimeProvider _timeProvider;
-    private readonly JsonSerializerOptions _jsonOptions;
     private readonly MqttQualityOfServiceLevel _qualityOfService;
-    private readonly Dictionary<Guid, IReadOnlyCollection<INode[]>> _transferredNodeJsonNodes;
     private readonly Dictionary<string, IReadOnlyCollection<INode>> _addressNodes;
+    private readonly MqttMessageHandler _messageHandler;
 
     public event Action<IReadOnlyCollection<ExternalValue>>? Received;
 
@@ -35,20 +32,23 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
         _communication = communication;
         _client = virtualMqttClient;
         _logger = logger;
-        _timeProvider = timeProvider;
-        _jsonOptions = JsonSetup.CreatePreserveTypeOptions(loadContext);
         MqttDataPortProperties properties = new(communication);
         _qualityOfService = properties.QualityOfService;
-        _defaultSerializer = properties.DefaultSerializer;
 
-        (_transferredNodeJsonNodes, _addressNodes) = InitializeUnspecificTree.InitializeIncoming(communication.Nodes, GenerateTopic);
+        var envelopeChildren = EnvelopeChildren.Create(communication.Nodes, properties.ProtocolVersion == MqttProtocolVersion.V500);
+        var (transferredNodeJsonNodes, addressNodes) = InitializeUnspecificTree.InitializeIncoming(communication.Nodes, GenerateTopic);
+        _addressNodes = addressNodes;
+        _messageHandler = new(transferredNodeJsonNodes, addressNodes, timeProvider, JsonSetup.CreatePreserveTypeOptions(loadContext), loadContext, properties.DefaultSerializer, envelopeChildren, logger);
     }
 
     private Task HandleIncomingValueAsync(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs)
     {
         try
         {
-            Received?.Invoke(MqttMessageHandler.HandleMessage(eventArgs, _transferredNodeJsonNodes, _addressNodes, _timeProvider, _jsonOptions, _defaultSerializer));
+            var values = _messageHandler.HandleMessage(eventArgs);
+
+            if (values.Count != 0)
+                Received?.Invoke(values);
         }
         catch (Exception ex)
         {

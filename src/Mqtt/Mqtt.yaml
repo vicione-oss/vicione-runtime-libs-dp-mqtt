@@ -1,8 +1,8 @@
 Common:
   Target       : DataPort                                                                          # required: Id String to identify the target of the file
   ContentType  : Rules                                                                             # required: Id String to identify the content of the file
-  Version      : 1.0.0                                                                            # required: Version of the file
-  Date         : 2026-05-18                                                                        # required: Date of the file
+  Version      : 2.0.0                                                                            # required: Version of the file
+  Date         : 2026-09-02                                                                        # required: Date of the file
   Description  : "MQTT DataPort"                                                                   # required: Description of the file
   Author       : "ViciOne open automation gmbh"                                                    # required: Author of the file
   MetadataType : YAML                                                                              # required: Metadata type of the file (YAML, JSON, XML, Text, Binary, ...)
@@ -111,6 +111,15 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
@@ -129,6 +138,15 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
@@ -147,6 +165,15 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
@@ -165,6 +192,15 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
@@ -183,6 +219,15 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
@@ -201,11 +246,67 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f#+]+$'
         Message            : "MQTT topic may not contain control characters, '#' or '+'."
+    ChildNodes             :
+      - Id                 : UserProperty
+        MaxInstances       : 16
+      - Id                 : Timestamp
+        MaxInstances       : 1
+      - Id                 : Validity
+        MaxInstances       : 1
+      - Id                 : Type
+        MaxInstances       : 1
     PropertyCategories     :
       - Id                 : Other
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+
+  # -------------------- Envelope children -------------------------------
+
+  - Id                     : UserProperty
+    MappingId              : UserProperty
+    Type                   : DataPortTreeNode
+    Name                   : "User property"
+    Description            : "A user property of the message of its parent data point. The node name is the key it is sent under, and the keys 'Timestamp', 'Validity' and 'Type' are reserved. This data port puts at most 16 user properties on a message. It has no topic and no transfer of its own; its value is carried by the parent message."
+    Icon                   : datapoint
+    TransferModes          : [ None ]
+    DataTypes              : [ String, Int64, Float64, Bool, DateTime ]
+    NameValidations        :
+      - Type               : Regex
+        Pattern            : '^[^\x00-\x1f\x7f]+$'
+        Message            : "A user property key may not be empty and may not contain control characters."
+
+  - Id                     : Timestamp
+    MappingId              : Timestamp
+    Type                   : DataPortTreeNode
+    Name                   : "Timestamp"
+    Description            : "Carries the timestamp of the parent value as the 'Timestamp' user property of the parent message. Outbound it cannot be linked: the port always sends the timestamp of the parent value. Inbound it publishes the timestamp the received message carries. It has no transfer of its own; its value is carried by the parent message."
+    Icon                   : datapoint
+    TransferModes          : [ None ]
+    LinkDirections         : [ Inbound ]
+    DataTypes              : [ DateTime ]
+
+  - Id                     : Validity
+    MappingId              : Validity
+    Type                   : DataPortTreeNode
+    Name                   : "Validity"
+    Description            : "Carries the engine validity of the parent value as the 'Validity' user property of the parent message, outbound only, as the integer the engine gave it, of which everything but 0 means valid. It cannot be linked: the port derives it from the parent value. It has no transfer of its own; its value is carried by the parent message."
+    Icon                   : datapoint
+    TransferModes          : [ None ]
+    TransferDirections     : [ Outbound ]
+    LinkDirections         : [ None ]
+    DataTypes              : [ Int64 ]
+
+  - Id                     : Type
+    MappingId              : Type
+    Type                   : DataPortTreeNode
+    Name                   : "Type"
+    Description            : "Adds the .NET type name of the published value as the 'Type' user property of the parent message, outbound only, so a receiving ViciOne system deserializes it with the sender's type. It cannot be linked: the port writes the assembly-qualified name of the parent value's runtime type. It has no transfer of its own; its value is carried by the parent message."
+    Icon                   : datapoint
+    TransferModes          : [ None ]
+    TransferDirections     : [ Outbound ]
+    LinkDirections         : [ None ]
+    DataTypes              : [ String ]
 
 PropertyCategories:
   - Id          : Connection
