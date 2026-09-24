@@ -386,9 +386,13 @@ Properties:
 
   - Id          : Url
     Name        : "Url"
-    Description : "The broker url for WebSocket."
+    Description : "The broker url for WebSocket. Only 'ws' and 'wss' are supported, of which 'wss' is encrypted."
     DataType    : Uri
     UiControl   : TextBox
+    Validations :
+      - Type    : Regex
+        Pattern : '^\s*[wW][sS][sS]?://\S'
+        Message : "The broker url has to use the 'ws' or the 'wss' scheme."
 
   - Id          : QualityOfService
     Name        : "Quality of service"

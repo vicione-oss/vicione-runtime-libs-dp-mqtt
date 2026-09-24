@@ -179,6 +179,22 @@ public class YamlTests
         return validations.All(v => v.Validate(name).IsValid);
     }
 
+    [Theory]
+    [InlineData("ws://localhost:8000/exchange")]
+    [InlineData("wss://localhost:8000/exchange")]
+    [InlineData("WSS://localhost:8000/exchange")]
+    public void Accepts_a_web_socket_url(string configured)
+        => Validate("Url", configured).Should().BeTrue();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("localhost:8000/exchange")]
+    [InlineData("http://localhost:8000/exchange")]
+    [InlineData("mqtt://localhost:8000")]
+    [InlineData("ws://")]
+    public void Rejects_a_url_without_a_web_socket_scheme(string configured)
+        => Validate("Url", configured).Should().BeFalse();
+
     [Fact]
     public void Hides_the_broker_validation_when_the_certificate_validation_is_disabled()
     {
@@ -190,5 +206,18 @@ public class YamlTests
 
         dependentProperties.Should().ContainKey("CertificateAuthorityFile");
         dependentProperties["CertificateAuthorityFile"].Should().Equal(["false"]);
+    }
+
+    private static bool Validate(string propertyId, string value)
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var validations = metadata.PropertyTypes
+            .Single(p => p.Id == propertyId)
+            .Validations;
+
+        validations.Should().NotBeNullOrEmpty();
+
+        return validations.All(v => v.Validate(value).IsValid);
     }
 }

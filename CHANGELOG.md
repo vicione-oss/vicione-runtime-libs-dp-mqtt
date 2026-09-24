@@ -18,6 +18,8 @@
 - Update `MQTTnet.Extensions` to `2.0.0`
 - **Breaking:** Reject an invalid TLS configuration instead of falling back to an unencrypted or
   unauthenticated connection
+- **Breaking:** Require the `ws` or the `wss` scheme for the WebSocket broker url, which was
+  accepted without a scheme and then left the connection unencrypted
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a

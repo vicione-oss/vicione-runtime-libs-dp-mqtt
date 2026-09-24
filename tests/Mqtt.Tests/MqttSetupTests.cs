@@ -70,14 +70,14 @@ public class MqttSetup_ToCommunicationInfo
         _ = new MqttDataPortProperties(communication)
         {
             Protocol = MqttProtocol.WebSocket,
-            Url = new Uri("localhost:8000/exchange"),
+            Url = new Uri("wss://localhost:8000/exchange"),
         };
 
         var communicationInfo = communication.ToCommunicationInfo();
 
         communicationInfo.TcpHost.Should().BeNull();
         communicationInfo.TcpPort.Should().BeNull();
-        communicationInfo.WebSocketUri.Should().Be(new Uri("localhost:8000/exchange"));
+        communicationInfo.WebSocketUri.Should().Be(new Uri("wss://localhost:8000/exchange"));
     }
 
     [Fact]
