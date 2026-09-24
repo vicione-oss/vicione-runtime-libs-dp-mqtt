@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Mime;
+using System.Security.Authentication;
 using AwesomeAssertions;
 using MQTTnet.Protocol;
 using Xunit;
@@ -160,6 +161,40 @@ public class MqttSetup_ToCommunicationInfo
         communicationInfo.CertificateAuthorityFile.Should().BeNull();
         communicationInfo.DisableCertificateValidation.Should().BeTrue();
     }
+
+#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+    [Fact]
+    public void Configures_ssl_protocol_for_a_tcp_server()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = "localhost",
+            SslProtocol = SslProtocols.Tls13,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().Be(SslProtocols.Tls13);
+    }
+
+    [Fact]
+    public void Drops_the_ssl_protocol_for_a_web_socket_server()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.WebSocket,
+            Url = new Uri("ws://localhost:8000/exchange"),
+            SslProtocol = SslProtocols.Tls13,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().BeNull();
+    }
+#pragma warning restore CA5398 // Hartcodierte SslProtocols-Werte vermeiden
 
     [Theory]
     [InlineData(false, false)]

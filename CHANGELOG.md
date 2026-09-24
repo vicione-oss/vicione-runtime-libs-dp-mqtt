@@ -20,6 +20,12 @@
   unauthenticated connection
 - **Breaking:** Require the `ws` or the `wss` scheme for the WebSocket broker url, which was
   accepted without a scheme and then left the connection unencrypted
+- Offer the session expiry interval only for MQTT 5.0 and the SSL protocol only for a TCP endpoint,
+  where MQTT 3.1.1 does not know the one and a web socket drops the other
+- **Breaking:** Reject MQTT wildcards in the will topic and a scheme in the broker host
+- Name the quality of service levels instead of offering a bare number
+- Describe the certificate, endpoint and session settings of the broker, whose rules so far surfaced
+  only as an error when the connection was built
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a

@@ -333,25 +333,29 @@ PropertyCategories:
 Properties:
   - Id          : ClientId
     Name        : "Client ID"
-    Description : "The client id"
+    Description : "The identifier this client registers with at the broker. Left empty the broker assigns one, which no session can be resumed with."
     DataType    : String
     UiControl   : TextBox
 
   - Id          : WillTopic
     Name        : "Will topic"
-    Description : "The will topic"
+    Description : "The topic the will message is published to when the connection is lost. The will is only sent when a message is configured as well."
     DataType    : String
     UiControl   : TextBox
+    Validations :
+      - Type    : Regex
+        Pattern : '^[^\x00-\x1f\x7f#+]+$'
+        Message : "MQTT topic may not contain control characters, '#' or '+'."
 
   - Id          : WillMessage
     Name        : "Will message"
-    Description : "The will message"
+    Description : "The message published to the will topic when the connection is lost."
     DataType    : String
     UiControl   : TextBox
 
   - Id          : WillRetain
     Name        : "Will retain"
-    Description : "The will retain"
+    Description : "Keep the will message on the broker, so it reaches clients subscribing after the connection was lost."
     DataType    : Bool
     DefaultValue: false
     UiControl   : CheckBox
@@ -366,19 +370,24 @@ Properties:
     MaxValue           : 1
     Elements           : { 0: 'TCP',
                            1: 'WebSocket' }
-    DependentProperties: { 'Host': [0],
-                           'Port': [0],
-                           'Url' : [1] }
+    DependentProperties: { 'Host'       : [0],
+                           'Port'       : [0],
+                           'Url'        : [1],
+                           'SslProtocol': [0] }
 
   - Id          : Host
     Name        : "Host"
-    Description : "The broker host name or IP address for TCP."
+    Description : "The broker host name or IP address for TCP, without a scheme and without the port. Required for the TCP protocol."
     DataType    : String
     UiControl   : TextBox
+    Validations :
+      - Type    : Regex
+        Pattern : '^[^\s/]+$'
+        Message : "The broker host is a host name or an IP address, without a scheme and without the port."
 
   - Id          : Port
     Name        : "Port"
-    Description : "The broker port for TCP."
+    Description : "The broker port for TCP. Plain MQTT usually listens on 1883, MQTT over TLS on 8883."
     DataType    : UInt16
     UiControl   : NumericUpDown
     MinValue    : 1
@@ -386,7 +395,7 @@ Properties:
 
   - Id          : Url
     Name        : "Url"
-    Description : "The broker url for WebSocket. Only 'ws' and 'wss' are supported, of which 'wss' is encrypted."
+    Description : "The broker url for WebSocket. Only 'ws' and 'wss' are supported, of which 'wss' is encrypted. Required for the WebSocket protocol."
     DataType    : Uri
     UiControl   : TextBox
     Validations :
@@ -396,51 +405,55 @@ Properties:
 
   - Id          : QualityOfService
     Name        : "Quality of service"
-    Description : "Quality of service"
+    Description : "The delivery guarantee used for published messages and for the will message."
     DataType    : UInt8
     DefaultValue: 0
-    UiControl   : NumericUpDown
-    MinValue    : 0
-    MaxValue    : 2
-
-  - Id          : ProtocolVersion
-    Name        : "Protocol version"
-    Description : "Protocol version"
-    DataType    : UInt8
-    DefaultValue: 1
     UiControl   : NumericListBox
     MinValue    : 0
-    MaxValue    : 1
-    Elements    : { 0: 'v3.1.1',
-                    1: 'v5.0' }
+    MaxValue    : 2
+    Elements    : { 0: 'At most once',
+                    1: 'At least once',
+                    2: 'Exactly once' }
+
+  - Id                 : ProtocolVersion
+    Name               : "Protocol version"
+    Description        : "The version of the MQTT protocol spoken with the broker. Settings that MQTT 3.1.1 does not know are only offered for v5.0."
+    DataType           : UInt8
+    DefaultValue       : 1
+    UiControl          : NumericListBox
+    MinValue           : 0
+    MaxValue           : 1
+    Elements           : { 0: 'v3.1.1',
+                           1: 'v5.0' }
+    DependentProperties: { 'SessionExpiryInterval': [1] }
 
   - Id          : Username
     Name        : "User name"
-    Description : "The user name"
+    Description : "The user name the broker authenticates. MQTT transmits it in clear text, so it is only protected by an encrypted connection."
     DataType    : String
     UiControl   : TextBox
 
   - Id          : Password
     Name        : "Password"
-    Description : "The password"
+    Description : "The password the broker authenticates. MQTT transmits it in clear text, so it is only protected by an encrypted connection."
     DataType    : String
     UiControl   : PasswordBox
 
   - Id          : CertificateFile
     Name        : "Certificate file"
-    Description : "The certificate file"
+    Description : "The client certificate presented to the broker, as PKCS#12 or PEM. Accepts a file path, the content itself or the content Base64 encoded. It has to carry its private key, and configuring it encrypts the connection."
     DataType    : String
     UiControl   : TextBox
 
   - Id          : CertificateFilePassword
     Name        : "Certificate file password"
-    Description : "The certificate file password"
+    Description : "The password of a PKCS#12 certificate file. It cannot be used with a PEM certificate, whose private key has to be unencrypted."
     DataType    : String
     UiControl   : PasswordBox
 
   - Id          : CertificatePrivateKeyFile
     Name        : "Certificate private key file"
-    Description : "The certificate private key file"
+    Description : "The PEM encoded private key of a PEM certificate, where it is required. It has to stay empty for a PKCS#12 certificate, which carries its key already."
     DataType    : String
     UiControl   : TextBox
 
@@ -452,7 +465,7 @@ Properties:
 
   - Id          : SslProtocol
     Name        : "SSL protocol"
-    Description : "The SSL protocol"
+    Description : "The TLS version enforced for a TCP connection. 'None' does not mean the version of the system, it means that this setting does not encrypt the connection; once a certificate encrypts it, leaving 'None' negotiates TLS 1.2 or 1.3."
     DataType    : UInt8
     DefaultValue: 0
     UiControl   : NumericListBox
@@ -472,14 +485,14 @@ Properties:
 
   - Id          : CleanSession
     Name        : "Clean session"
-    Description : "Clean session"
+    Description : "Start with a fresh session instead of resuming the one the broker kept for this client id."
     DataType    : Bool
     DefaultValue: true
     UiControl   : CheckBox
 
   - Id          : SessionExpiryInterval
     Name        : "Session expiry interval"
-    Description : "Session expiry interval"
+    Description : "The seconds the broker keeps the session after the connection is lost. Known to MQTT 5.0 only; 0 discards the session immediately."
     DataType    : UInt32
     DefaultValue: 0
     UiControl   : NumericUpDown
@@ -487,14 +500,14 @@ Properties:
 
   - Id          : Retain
     Name        : "Retain"
-    Description : "Retain"
+    Description : "Keep the last message of this topic on the broker, so it reaches clients subscribing later."
     DataType    : Bool
     DefaultValue: false
     UiControl   : CheckBox
 
   - Id          : DefaultSerializer
     Name        : "Serializer"
-    Description : "Serializer"
+    Description : "The payload format used by the data points of this broker that do not choose one themselves."
     DataType    : UInt8
     UiControl   : NumericListBox
     MinValue    : 1
@@ -504,7 +517,7 @@ Properties:
 
   - Id          : Serializer
     Name        : "Serializer"
-    Description : "Serializer"
+    Description : "The payload format of this data point. 'Inherited' uses the serializer configured at the broker."
     DataType    : UInt8
     UiControl   : NumericListBox
     MinValue    : 0
@@ -523,7 +536,7 @@ Properties:
 
   - Id          : MaxPendingMessages
     Name        : "MaxPendingMessages"
-    Description : "Maximum of pending messages"
+    Description : "The messages queued while the connection is down. The oldest is dropped once the queue is full."
     DataType    : Int32
     DefaultValue: 100000
     UiControl   : NumericUpDown
@@ -531,7 +544,7 @@ Properties:
 
   - Id          : BrokerReceiveMaximum
     Name        : "BrokerReceiveMaximum"
-    Description : "Maximum of pending messages"
+    Description : "The messages published without waiting for their acknowledgement. An MQTT 5.0 broker may lower it further."
     DataType    : UInt16
     DefaultValue: 100
     UiControl   : NumericUpDown
