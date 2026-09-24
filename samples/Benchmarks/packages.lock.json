@@ -148,8 +148,8 @@
       },
       "MQTTnet": {
         "type": "Transitive",
-        "resolved": "5.1.0.1559",
-        "contentHash": "9mkk0H+76CToIzp9ru5Uj5BuC3P5hQdkhvXM+CLmmTDdZWqajjICCHuUMbDd1yVBt9BWL77Rvzt0A+/PA4WMCA=="
+        "resolved": "5.2.0.1603",
+        "contentHash": "iNuWVo/568aRo2ExEN2qkC4J5b07ckKqt+9Uok2kIbbK7PMBsXvYiKVENPHmOBWFB5ExhlNQb/qQ8M9/IYRTdQ=="
       },
       "Perfolizer": {
         "type": "Transitive",
@@ -199,17 +199,17 @@
       "ViciOne.Suite.DataPort.Mqtt": {
         "type": "Project",
         "dependencies": {
-          "MQTTnet.Extensions": "[1.0.0, )",
+          "MQTTnet.Extensions": "[2.0.0, )",
           "ViciOne.Suite.DataPort": "[0.32.0, )"
         }
       },
       "MQTTnet.Extensions": {
         "type": "CentralTransitive",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "CKYcuYOhnd1G1VjhTpjoBQma7KHrCkzy+jyBPDrFmsC1zf3Hi0Mj97xE7HuZhHcHeGZKbGXc6uScceniBYNKEQ==",
+        "requested": "[2.0.0, )",
+        "resolved": "2.0.0",
+        "contentHash": "kNG+o5q7V/2IFMjZfBNaknSURDHHI19Z7oHSLkAuZfNp1sIMhMt5wgeJiban6jkJVcuZMYnwjTJln7XcjnLfug==",
         "dependencies": {
-          "MQTTnet": "5.1.0.1559",
+          "MQTTnet": "5.2.0.1603",
           "Microsoft.Extensions.Logging.Abstractions": "9.0.3"
         }
       },

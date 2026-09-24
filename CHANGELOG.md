@@ -12,7 +12,9 @@
 
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
-- Update `MQTTnet.Extensions` to `1.0.0`
+- Update `MQTTnet.Extensions` to `2.0.0`
+- **Breaking:** Reject an invalid TLS configuration instead of falling back to an unencrypted or
+  unauthenticated connection
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
