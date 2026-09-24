@@ -26,6 +26,8 @@
 - Name the quality of service levels instead of offering a bare number
 - Describe the certificate, endpoint and session settings of the broker, whose rules so far surfaced
   only as an error when the connection was built
+- **Breaking:** Publish the data port without a bundled `.NET` runtime, which the host now has to
+  provide
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
