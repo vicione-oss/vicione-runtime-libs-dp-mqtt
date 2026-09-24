@@ -31,6 +31,7 @@ internal static class MqttSetup
             CertificateFile = properties.CertificateFile,
             CertificateFilePassword = properties.CertificateFilePassword,
             CertificatePrivateKeyFile = properties.CertificatePrivateKeyFile,
+            CertificateAuthorityFile = properties.DisableCertificateValidation is true ? null : properties.CertificateAuthorityFile,
             DisableCertificateValidation = properties.DisableCertificateValidation,
             WillTopic = properties.WillTopic,
             WillMessage = properties.WillMessage,

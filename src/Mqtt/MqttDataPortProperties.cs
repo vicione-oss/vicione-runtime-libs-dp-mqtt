@@ -97,6 +97,12 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
         set => communication.CertificatePrivateKeyFile = value;
     }
 
+    internal string? CertificateAuthorityFile
+    {
+        get => communication.CertificateAuthorityFile;
+        set => communication.CertificateAuthorityFile = value;
+    }
+
 #pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
     internal SslProtocols? SslProtocol
     {

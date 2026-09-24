@@ -644,6 +644,47 @@ public class MqttDataPortProperties_CertificatePrivateKeyFile
     };
 }
 
+public class MqttDataPortProperties_CertificateAuthorityFile
+{
+    [Fact]
+    public void Returns_null_if_missing()
+    {
+        MqttDataPortProperties properties = new(new());
+
+        properties.CertificateAuthorityFile.Should().BeNull();
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Getter_returns_value(string? value)
+    {
+        MqttDataPortProperties properties = new(new() { CertificateAuthorityFile = value, });
+
+        properties.CertificateAuthorityFile.Should().Be(value);
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Setter_sets_value(string? value)
+    {
+        MqttDataPortCommunication communication = new();
+
+        _ = new MqttDataPortProperties(communication)
+        {
+            CertificateAuthorityFile = value,
+        };
+
+        communication.CertificateAuthorityFile.Should().Be(value);
+    }
+
+    public static TheoryData<string?> Conversion() => new()
+    {
+        { null! },
+        { string.Empty },
+        { "ca.pem" },
+    };
+}
+
 public class MqttDataPortProperties_SslProtocol
 {
     [Theory]

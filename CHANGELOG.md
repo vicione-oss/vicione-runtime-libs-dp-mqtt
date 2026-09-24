@@ -7,6 +7,9 @@
 - Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
   `Validity` and `Type` children that travel in the user properties of its message
 - Read a received `Validity` written as `true` or `false`
+- Add `CertificateAuthorityFile` to validate the MQTT broker against a private PKI instead of having
+  to disable the certificate validation. A self-signed broker certificate configured there anchors on
+  itself, which trusts that one broker and nothing else
 
 ### Changed
 

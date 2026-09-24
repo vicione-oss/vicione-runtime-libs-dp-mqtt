@@ -68,6 +68,7 @@ Nodes:
           - Id             : CertificateFile
           - Id             : CertificateFilePassword
           - Id             : CertificatePrivateKeyFile
+          - Id             : CertificateAuthorityFile
           - Id             : DisableCertificateValidation
       - Id                 : Other
         Properties         :
@@ -439,6 +440,12 @@ Properties:
     DataType    : String
     UiControl   : TextBox
 
+  - Id          : CertificateAuthorityFile
+    Name        : "Certificate authority file"
+    Description : "The certificate authority the broker certificate is validated against, for a broker of a private PKI. Holds PEM, a single certificate or a bundle, or one DER encoded certificate. A self-signed broker certificate configured here anchors on itself, which trusts that one broker and nothing else. Without it the broker is validated against the trusted authorities of the system."
+    DataType    : String
+    UiControl   : TextBox
+
   - Id          : SslProtocol
     Name        : "SSL protocol"
     Description : "The SSL protocol"
@@ -451,12 +458,13 @@ Properties:
                     1: 'TLSv1.2',
                     2: 'TLSv1.3' }
 
-  - Id          : DisableCertificateValidation
-    Name        : "Disable certificate validation"
-    Description : "Disable certificate validation"
-    DataType    : Bool
-    DefaultValue: false
-    UiControl   : CheckBox
+  - Id                 : DisableCertificateValidation
+    Name               : "Disable certificate validation"
+    Description        : "Accept any broker certificate. It contradicts the certificate authority file, which validates the broker."
+    DataType           : Bool
+    DefaultValue       : false
+    UiControl          : CheckBox
+    DependentProperties: { 'CertificateAuthorityFile': [false] }
 
   - Id          : CleanSession
     Name        : "Clean session"

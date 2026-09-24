@@ -19,6 +19,7 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
     public string? CertificateFile { get; set; }
     public string? CertificateFilePassword { get; set; }
     public string? CertificatePrivateKeyFile { get; set; }
+    public string? CertificateAuthorityFile { get; set; }
     public byte? SslProtocol { get; set; }
     public bool? DisableCertificateValidation { get; set; }
     public bool? CleanSession { get; set; }
@@ -52,6 +53,7 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
         builder.Append(", CertificateFile = ").Append(Redacted(CertificateFile));
         builder.Append(", CertificateFilePassword = ").Append(Redacted(CertificateFilePassword));
         builder.Append(", CertificatePrivateKeyFile = ").Append(Redacted(CertificatePrivateKeyFile));
+        builder.Append(", CertificateAuthorityFile = ").Append(CertificateAuthorityFile);
         builder.Append(", SslProtocol = ").Append(SslProtocol);
         builder.Append(", DisableCertificateValidation = ").Append(DisableCertificateValidation);
         builder.Append(", CleanSession = ").Append(CleanSession);

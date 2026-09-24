@@ -129,6 +129,38 @@ public class MqttSetup_ToCommunicationInfo
         communicationInfo.Password.Should().Be(password);
     }
 
+    [Fact]
+    public void Configures_certificate_authority()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            CertificateAuthorityFile = "/etc/mqtt/ca.pem",
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.CertificateAuthorityFile.Should().Be("/etc/mqtt/ca.pem");
+    }
+
+    [Fact]
+    public void Drops_the_certificate_authority_while_the_certificate_validation_is_disabled()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            DisableCertificateValidation = true,
+            CertificateAuthorityFile = TestCertificates.CertificateAuthorityPem,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.CertificateAuthorityFile.Should().BeNull();
+        communicationInfo.DisableCertificateValidation.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, true)]

@@ -178,4 +178,17 @@ public class YamlTests
 
         return validations.All(v => v.Validate(name).IsValid);
     }
+
+    [Fact]
+    public void Hides_the_broker_validation_when_the_certificate_validation_is_disabled()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var dependentProperties = metadata.PropertyTypes
+            .Single(p => p.Id == "DisableCertificateValidation")
+            .DependentProperties;
+
+        dependentProperties.Should().ContainKey("CertificateAuthorityFile");
+        dependentProperties["CertificateAuthorityFile"].Should().Equal(["false"]);
+    }
 }
