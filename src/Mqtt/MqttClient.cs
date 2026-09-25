@@ -16,7 +16,7 @@ internal sealed class MqttClient(IManagedMqttClient managedMqttClient, Communica
 
     public IManagedMqttClient InnerClient => managedMqttClient;
 
-    [SuppressMessage("Reliability", "CA2000:Objekte verwerfen, bevor Bereich verloren geht")]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The MqttClient owns the managed client and disposes it")]
     internal static MqttClient Create(CommunicationInfo communicationInfo, ILoggerFactory loggerFactory)
     {
         MqttLogger logger = new(loggerFactory.CreateLogger<IManagedMqttClient>());

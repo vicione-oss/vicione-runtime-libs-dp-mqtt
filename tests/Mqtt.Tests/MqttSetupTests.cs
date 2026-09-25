@@ -162,7 +162,7 @@ public class MqttSetup_ToCommunicationInfo
         communicationInfo.DisableCertificateValidation.Should().BeTrue();
     }
 
-#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+#pragma warning disable CA5398 // The TLS versions the ruleset offers
     [Fact]
     public void Configures_ssl_protocol_for_a_tcp_server()
     {
@@ -194,7 +194,7 @@ public class MqttSetup_ToCommunicationInfo
 
         communicationInfo.SslProtocol.Should().BeNull();
     }
-#pragma warning restore CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+#pragma warning restore CA5398 // The TLS versions the ruleset offers
 
     [Theory]
     [InlineData(false, false)]
