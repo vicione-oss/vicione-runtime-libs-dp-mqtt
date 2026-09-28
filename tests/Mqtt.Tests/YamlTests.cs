@@ -33,6 +33,31 @@ public class YamlTests
             .Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A property that is declared but not referenced by the broker node is never shown and
+    /// therefore never set, which the declaration alone does not reveal.
+    /// </summary>
+    [Fact]
+    public void All_properties_of_communication_class_are_offered_by_the_broker()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var brokerPropertyIds = metadata.NodeTypes
+            .Single(n => n.Id == "MQTT-Broker")
+            .PropertyCategories
+            .SelectMany(c => c.Properties)
+            .Select(p => p.Id)
+            .ToHashSet();
+
+        var classPropertyNames = typeof(MqttDataPortCommunication)
+            .GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly)
+            .Select(p => p.Name)
+            .ToHashSet();
+
+        classPropertyNames.Except(brokerPropertyIds)
+            .Should().BeEmpty();
+    }
+
     [Fact]
     public void DesignIds_should_be_in_yaml()
     {
@@ -177,5 +202,113 @@ public class YamlTests
         validations.Should().NotBeNullOrEmpty();
 
         return validations.All(v => v.Validate(name).IsValid);
+    }
+
+    [Theory]
+    [InlineData("ws://localhost:8000/exchange")]
+    [InlineData("wss://localhost:8000/exchange")]
+    [InlineData("WSS://localhost:8000/exchange")]
+    public void Accepts_a_web_socket_url(string configured)
+        => Validate("Url", configured).Should().BeTrue();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("localhost:8000/exchange")]
+    [InlineData("http://localhost:8000/exchange")]
+    [InlineData("mqtt://localhost:8000")]
+    [InlineData("ws://")]
+    public void Rejects_a_url_without_a_web_socket_scheme(string configured)
+        => Validate("Url", configured).Should().BeFalse();
+
+    [Theory]
+    [InlineData("app/status")]
+    [InlineData("app")]
+    public void Accepts_a_will_topic(string topic)
+        => Validate("WillTopic", topic).Should().BeTrue();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("app/#")]
+    [InlineData("app/+/state")]
+    public void Rejects_a_will_topic_with_a_wildcard(string topic)
+        => Validate("WillTopic", topic).Should().BeFalse();
+
+    [Theory]
+    [InlineData("broker.example.com")]
+    [InlineData("192.168.1.10")]
+    [InlineData("::1")]
+    public void Accepts_a_broker_host(string host)
+        => Validate("Host", host).Should().BeTrue();
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("tcp://broker")]
+    [InlineData("ws://broker")]
+    [InlineData("broker name")]
+    public void Rejects_a_broker_host_with_a_scheme(string host)
+        => Validate("Host", host).Should().BeFalse();
+
+    [Fact]
+    public void Offers_the_ssl_protocol_only_for_a_tcp_endpoint()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var dependentProperties = metadata.PropertyTypes
+            .Single(p => p.Id == "Protocol")
+            .DependentProperties;
+
+        dependentProperties["SslProtocol"].Should().Equal(["0"]);
+        dependentProperties["Url"].Should().Equal(["1"]);
+    }
+
+    [Fact]
+    public void Offers_the_session_expiry_interval_only_for_mqtt_5()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var dependentProperties = metadata.PropertyTypes
+            .Single(p => p.Id == "ProtocolVersion")
+            .DependentProperties;
+
+        dependentProperties["SessionExpiryInterval"].Should().Equal(["1"]);
+    }
+
+    [Fact]
+    public void Names_the_quality_of_service_levels()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var elements = metadata.PropertyTypes
+            .Single(p => p.Id == "QualityOfService")
+            .Elements;
+
+        elements.Should().HaveCount(3);
+        elements.Values.Should().Equal("At most once", "At least once", "Exactly once");
+    }
+
+    [Fact]
+    public void Hides_the_broker_validation_when_the_certificate_validation_is_disabled()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var dependentProperties = metadata.PropertyTypes
+            .Single(p => p.Id == "DisableCertificateValidation")
+            .DependentProperties;
+
+        dependentProperties.Should().ContainKey("CertificateAuthorityFile");
+        dependentProperties["CertificateAuthorityFile"].Should().Equal(["false"]);
+    }
+
+    private static bool Validate(string propertyId, string value)
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var validations = metadata.PropertyTypes
+            .Single(p => p.Id == propertyId)
+            .Validations;
+
+        validations.Should().NotBeNullOrEmpty();
+
+        return validations.All(v => v.Validate(value).IsValid);
     }
 }

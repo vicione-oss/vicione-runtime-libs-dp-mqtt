@@ -457,9 +457,9 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
     [Theory]
     [MemberData(nameof(GetSingleNodeVariants))]
     [SuppressMessage("Usage", "xUnit1044:Avoid using TheoryData type arguments that are not serializable",
-        Justification = "Daten sind zu komplex und gehöre zur öffentlichen API")]
+        Justification = "The data is too complex to serialize and belongs to the public API")]
     [SuppressMessage("Usage", "xUnit1045:Avoid using TheoryData type arguments that might not be serializable",
-        Justification = "Daten sind zu komplex und gehöre zur öffentlichen API")]
+        Justification = "The data is too complex to serialize and belongs to the public API")]
     public async Task Can_receive_single_node_Async(Node[] nodes, MqttApplicationMessage message, Action<List<ExternalValue>> assert)
     {
         MqttDataPortCommunication communication = new()

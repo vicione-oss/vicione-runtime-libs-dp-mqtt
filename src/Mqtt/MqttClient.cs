@@ -10,15 +10,19 @@ using MQTTnet.Protocol;
 
 namespace ViciOne.Suite.DataPort;
 
-internal sealed class MqttClient(IManagedMqttClient managedMqttClient, CommunicationInfo communicationInfo) : IVirtualMqttClient
+internal sealed class MqttClient(IManagedMqttClient managedMqttClient, CommunicationInfo communicationInfo, MqttLogger logger) : IVirtualMqttClient
 {
     private readonly AsyncEvent<MqttApplicationMessageReceivedEventArgs> _messageReceived = new();
 
     public IManagedMqttClient InnerClient => managedMqttClient;
 
-    [SuppressMessage("Reliability", "CA2000:Objekte verwerfen, bevor Bereich verloren geht")]
+    [SuppressMessage("Reliability", "CA2000:Dispose objects before losing scope", Justification = "The MqttClient owns the managed client and disposes it")]
     internal static MqttClient Create(CommunicationInfo communicationInfo, ILoggerFactory loggerFactory)
-        => new(new MqttClientFactory().CreateManagedMqttClient(new MqttLogger(loggerFactory.CreateLogger<IManagedMqttClient>())), communicationInfo);
+    {
+        MqttLogger logger = new(loggerFactory.CreateLogger<IManagedMqttClient>());
+
+        return new(new MqttClientFactory().CreateManagedMqttClient(logger), communicationInfo, logger);
+    }
 
     public event Func<MqttApplicationMessageReceivedEventArgs, Task>? MessageReceived
     {
@@ -29,7 +33,7 @@ internal sealed class MqttClient(IManagedMqttClient managedMqttClient, Communica
     public Task Connect()
     {
         managedMqttClient.ApplicationMessageReceivedAsync += ReceiveMessage;
-        return managedMqttClient.StartAsync(communicationInfo.BuildClientOptions());
+        return managedMqttClient.StartAsync(communicationInfo.BuildClientOptions(logger));
     }
 
     public Task Disconnect()

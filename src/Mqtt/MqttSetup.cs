@@ -27,10 +27,10 @@ internal static class MqttSetup
             SessionExpiryInterval = properties.SessionExpiryInterval,
             Username = properties.Username,
             Password = properties.Password,
-            SslProtocol = properties.SslProtocol,
             CertificateFile = properties.CertificateFile,
             CertificateFilePassword = properties.CertificateFilePassword,
             CertificatePrivateKeyFile = properties.CertificatePrivateKeyFile,
+            CertificateAuthorityFile = properties.DisableCertificateValidation is true ? null : properties.CertificateAuthorityFile,
             DisableCertificateValidation = properties.DisableCertificateValidation,
             WillTopic = properties.WillTopic,
             WillMessage = properties.WillMessage,
@@ -45,6 +45,7 @@ internal static class MqttSetup
             case MqttProtocol.Tcp:
                 communicationInfo.TcpHost = properties.Host;
                 communicationInfo.TcpPort = properties.Port;
+                communicationInfo.SslProtocol = properties.SslProtocol;
                 break;
             case MqttProtocol.WebSocket:
                 communicationInfo.WebSocketUri = properties.Url;

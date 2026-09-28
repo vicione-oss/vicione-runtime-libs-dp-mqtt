@@ -644,6 +644,47 @@ public class MqttDataPortProperties_CertificatePrivateKeyFile
     };
 }
 
+public class MqttDataPortProperties_CertificateAuthorityFile
+{
+    [Fact]
+    public void Returns_null_if_missing()
+    {
+        MqttDataPortProperties properties = new(new());
+
+        properties.CertificateAuthorityFile.Should().BeNull();
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Getter_returns_value(string? value)
+    {
+        MqttDataPortProperties properties = new(new() { CertificateAuthorityFile = value, });
+
+        properties.CertificateAuthorityFile.Should().Be(value);
+    }
+
+    [Theory]
+    [MemberData(nameof(Conversion))]
+    public void Setter_sets_value(string? value)
+    {
+        MqttDataPortCommunication communication = new();
+
+        _ = new MqttDataPortProperties(communication)
+        {
+            CertificateAuthorityFile = value,
+        };
+
+        communication.CertificateAuthorityFile.Should().Be(value);
+    }
+
+    public static TheoryData<string?> Conversion() => new()
+    {
+        { null! },
+        { string.Empty },
+        { "ca.pem" },
+    };
+}
+
 public class MqttDataPortProperties_SslProtocol
 {
     [Theory]
@@ -683,12 +724,12 @@ public class MqttDataPortProperties_SslProtocol
     {
         MqttDataPortProperties properties = new(new());
 
-#pragma warning disable SYSLIB0039 // Typ oder Element ist veraltet
-#pragma warning disable CA5397 // Keine veralteten SslProtocols-Werte verwenden
+#pragma warning disable SYSLIB0039 // The obsolete TLS version is the rejected input
+#pragma warning disable CA5397 // The obsolete TLS version is the rejected input
         FluentActions.Invoking(() => properties.SslProtocol = SslProtocols.Tls).Should().Throw<NotSupportedException>()
             .WithMessage("*SslProtocol*'Tls'*not*supported*");
-#pragma warning restore CA5397 // Keine veralteten SslProtocols-Werte verwenden
-#pragma warning restore SYSLIB0039 // Typ oder Element ist veraltet
+#pragma warning restore CA5397 // The obsolete TLS version is the rejected input
+#pragma warning restore SYSLIB0039 // The obsolete TLS version is the rejected input
     }
 
     [Fact]
@@ -699,7 +740,7 @@ public class MqttDataPortProperties_SslProtocol
         properties.SslProtocol.Should().BeNull();
     }
 
-#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+#pragma warning disable CA5398 // The TLS versions the ruleset offers
     public static TheoryData<byte?, SslProtocols?> Conversion() => new()
     {
         { null, null },
@@ -707,7 +748,7 @@ public class MqttDataPortProperties_SslProtocol
         { 1, SslProtocols.Tls12 },
         { 2, SslProtocols.Tls13 },
     };
-#pragma warning restore CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+#pragma warning restore CA5398 // The TLS versions the ruleset offers
 }
 
 public class MqttDataPortProperties_DisableCertificateValidation

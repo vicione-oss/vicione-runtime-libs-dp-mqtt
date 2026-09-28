@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net.Mime;
+using System.Security.Authentication;
 using AwesomeAssertions;
 using MQTTnet.Protocol;
 using Xunit;
@@ -70,14 +71,14 @@ public class MqttSetup_ToCommunicationInfo
         _ = new MqttDataPortProperties(communication)
         {
             Protocol = MqttProtocol.WebSocket,
-            Url = new Uri("localhost:8000/exchange"),
+            Url = new Uri("wss://localhost:8000/exchange"),
         };
 
         var communicationInfo = communication.ToCommunicationInfo();
 
         communicationInfo.TcpHost.Should().BeNull();
         communicationInfo.TcpPort.Should().BeNull();
-        communicationInfo.WebSocketUri.Should().Be(new Uri("localhost:8000/exchange"));
+        communicationInfo.WebSocketUri.Should().Be(new Uri("wss://localhost:8000/exchange"));
     }
 
     [Fact]
@@ -128,6 +129,72 @@ public class MqttSetup_ToCommunicationInfo
         communicationInfo.Username.Should().Be(username);
         communicationInfo.Password.Should().Be(password);
     }
+
+    [Fact]
+    public void Configures_certificate_authority()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            CertificateAuthorityFile = "/etc/mqtt/ca.pem",
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.CertificateAuthorityFile.Should().Be("/etc/mqtt/ca.pem");
+    }
+
+    [Fact]
+    public void Drops_the_certificate_authority_while_the_certificate_validation_is_disabled()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Host = "localhost",
+            DisableCertificateValidation = true,
+            CertificateAuthorityFile = TestCertificates.CertificateAuthorityPem,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.CertificateAuthorityFile.Should().BeNull();
+        communicationInfo.DisableCertificateValidation.Should().BeTrue();
+    }
+
+#pragma warning disable CA5398 // The TLS versions the ruleset offers
+    [Fact]
+    public void Configures_ssl_protocol_for_a_tcp_server()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.Tcp,
+            Host = "localhost",
+            SslProtocol = SslProtocols.Tls13,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().Be(SslProtocols.Tls13);
+    }
+
+    [Fact]
+    public void Drops_the_ssl_protocol_for_a_web_socket_server()
+    {
+        MqttDataPortCommunication communication = new();
+        _ = new MqttDataPortProperties(communication)
+        {
+            Protocol = MqttProtocol.WebSocket,
+            Url = new Uri("ws://localhost:8000/exchange"),
+            SslProtocol = SslProtocols.Tls13,
+        };
+
+        var communicationInfo = communication.ToCommunicationInfo();
+
+        communicationInfo.SslProtocol.Should().BeNull();
+    }
+#pragma warning restore CA5398 // The TLS versions the ruleset offers
 
     [Theory]
     [InlineData(false, false)]

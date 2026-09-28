@@ -10,7 +10,7 @@ public class SerializerExtensions_Serialize
 {
     [Theory]
     [MemberData(nameof(GetData))]
-    [SuppressMessage("Usage", "xUnit1045:Avoid using TheoryData type arguments that might not be serializable", Justification = "Nicht möglich")]
+    [SuppressMessage("Usage", "xUnit1045:Avoid using TheoryData type arguments that might not be serializable", Justification = "The values are of arbitrary types and cannot be serialized")]
     public void Should_serialize(Serializer serializer, object? value, string? expected, Type type)
     {
         var result = serializer.Serialize(value, type, new());
@@ -45,7 +45,7 @@ public class SerializerExtensions_Deserialize
 {
     [Theory]
     [MemberData(nameof(GetData))]
-    [SuppressMessage("Usage", "xUnit1045:Avoid using TheoryData type arguments that might not be serializable", Justification = "Nicht möglich")]
+    [SuppressMessage("Usage", "xUnit1045:Avoid using TheoryData type arguments that might not be serializable", Justification = "The values are of arbitrary types and cannot be serialized")]
     public void Should_deserialize(Serializer serializer, string value, object? expected, Type type)
     {
         var data = Encoding.UTF8.GetBytes(value);

@@ -7,12 +7,27 @@
 - Support envelope children for MQTT 5.0: a data point may carry `User property`, `Timestamp`,
   `Validity` and `Type` children that travel in the user properties of its message
 - Read a received `Validity` written as `true` or `false`
+- Add `CertificateAuthorityFile` to validate the MQTT broker against a private PKI instead of having
+  to disable the certificate validation. A self-signed broker certificate configured there anchors on
+  itself, which trusts that one broker and nothing else
 
 ### Changed
 
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
-- Update `MQTTnet.Extensions` to `1.0.0`
+- Update `MQTTnet.Extensions` to `2.0.0`
+- **Breaking:** Reject an invalid TLS configuration instead of falling back to an unencrypted or
+  unauthenticated connection
+- **Breaking:** Require the `ws` or the `wss` scheme for the WebSocket broker url, which was
+  accepted without a scheme and then left the connection unencrypted
+- Offer the session expiry interval only for MQTT 5.0 and the SSL protocol only for a TCP endpoint,
+  where MQTT 3.1.1 does not know the one and a web socket drops the other
+- **Breaking:** Reject MQTT wildcards in the will topic and a scheme in the broker host
+- Name the quality of service levels instead of offering a bare number
+- Describe the certificate, endpoint and session settings of the broker, whose rules so far surfaced
+  only as an error when the connection was built
+- **Breaking:** Publish the data port without a bundled `.NET` runtime, which the host now has to
+  provide
 - **Breaking:** Send `Timestamp`, `Validity` and `Type` on the message of a data point only when it
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
@@ -30,6 +45,10 @@
 - Keep the instant of a received `Timestamp`, which moved by the host's UTC offset when republished
 - Read a received `Timestamp` without a time zone as UTC instead of the local time of the host
 - Honour the cancellation of a send cycle: publish nothing further and stop waiting for the broker
+- Redact the credentials and the client certificate in the text representation of the MQTT
+  communication, which exposed them to every log sink
+- Log the warnings about insecure connection settings for an unpooled MQTT client too, where they
+  were dropped
 
 ## 1.0.0 - 2026-05-18
 

@@ -97,7 +97,13 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
         set => communication.CertificatePrivateKeyFile = value;
     }
 
-#pragma warning disable CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+    internal string? CertificateAuthorityFile
+    {
+        get => communication.CertificateAuthorityFile;
+        set => communication.CertificateAuthorityFile = value;
+    }
+
+#pragma warning disable CA5398 // The ruleset offers exactly these TLS versions to choose from
     internal SslProtocols? SslProtocol
     {
         get => communication.SslProtocol switch
@@ -116,7 +122,7 @@ internal sealed class MqttDataPortProperties(MqttDataPortCommunication communica
             SslProtocols.Tls13 => 2,
             { } p => throw new NotSupportedException($"The {nameof(communication.SslProtocol)} '{p}' is not supported."),
         };
-#pragma warning restore CA5398 // Hartcodierte SslProtocols-Werte vermeiden
+#pragma warning restore CA5398 // The ruleset offers exactly these TLS versions to choose from
     }
 
     internal bool? DisableCertificateValidation
