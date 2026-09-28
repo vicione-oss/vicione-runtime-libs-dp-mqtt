@@ -43,7 +43,7 @@ public class YamlTests
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
 
         var brokerPropertyIds = metadata.NodeTypes
-            .Single(n => n.Id == "MQTT-Broker")
+            .Single(n => n.Id == "MqttClientInstance")
             .PropertyCategories
             .SelectMany(c => c.Properties)
             .Select(p => p.Id)
@@ -283,7 +283,7 @@ public class YamlTests
             .Elements;
 
         elements.Should().HaveCount(3);
-        elements.Values.Should().Equal("At most once", "At least once", "Exactly once");
+        elements.Values.Should().Equal("At most once (0)", "At least once (1)", "Exactly once (2)");
     }
 
     [Fact]
