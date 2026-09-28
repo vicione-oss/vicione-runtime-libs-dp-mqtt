@@ -9,23 +9,23 @@ Common:
   Namespace    : "ViciOne.DataPort.Mqtt"                                                           # required: Namespace of the DataPort
 
 Root:
-  Id                       : "MQTTDataPort"                                                        # required: Id String to identify the root of the DataPort
+  Id                       : "MqttDataPort"                                                        # required: Id String to identify the root of the DataPort
   Name                     : "MQTT"                                                                # required: display name of the DataPort
   Description              : "DataPort for MQTT Protocol 3.x to 5.0"                               # required: display description of the DataPort
   Icon                     : mqtt                                                                  # required: just one Icon for the DataPort
   ChildNodes               :
-    - Id                   : MQTT-Broker
+    - Id                   : MqttClientInstance
       MaxDepth             : 64
       MaxInstances         : 8
 
 Nodes:
 
-  # -------------------- MQTT-Broker ------------------------------------
+  # -------------------- MqttClientInstance -----------------------------
 
-  - Id                     : MQTT-Broker
+  - Id                     : MqttClientInstance
     Type                   : DataPortNode
-    Name                   : "Broker"
-    Description            : "Broker"
+    Name                   : "Client"
+    Description            : "The client connection to one MQTT broker"
     MetadataLength         : 0
     Icon                   : broker
     TransferDirections     : [ Outbound, Inbound ]
@@ -323,7 +323,7 @@ PropertyCategories:
     Description : "Certificate properties"
 
   - Id          :  LastWill
-    Name        : "Last Will"
+    Name        : "Last will"
     Description : "Last Will properties"
 
   - Id          : Other
@@ -411,9 +411,9 @@ Properties:
     UiControl   : NumericListBox
     MinValue    : 0
     MaxValue    : 2
-    Elements    : { 0: 'At most once',
-                    1: 'At least once',
-                    2: 'Exactly once' }
+    Elements    : { 0: 'At most once (0)',
+                    1: 'At least once (1)',
+                    2: 'Exactly once (2)' }
 
   - Id                 : ProtocolVersion
     Name               : "Protocol version"
@@ -491,7 +491,7 @@ Properties:
     UiControl   : CheckBox
 
   - Id          : SessionExpiryInterval
-    Name        : "Session expiry interval"
+    Name        : "Session expiry interval (s)"
     Description : "The seconds the broker keeps the session after the connection is lost. Known to MQTT 5.0 only; 0 discards the session immediately."
     DataType    : UInt32
     DefaultValue: 0
@@ -529,13 +529,13 @@ Properties:
 
   - Id          : Pooling
     Name        : "Pooling"
-    Description : "Pooling is a technique that involves creating and maintaining a pool of connections, which are then be reused"
+    Description : "Pooling is a technique that involves creating and maintaining a pool of connections, which are then reused."
     DataType    : Bool
     DefaultValue: true
     UiControl   : CheckBox
 
   - Id          : MaxPendingMessages
-    Name        : "MaxPendingMessages"
+    Name        : "Max pending messages"
     Description : "The messages queued while the connection is down. The oldest is dropped once the queue is full."
     DataType    : Int32
     DefaultValue: 100000
@@ -543,7 +543,7 @@ Properties:
     MinValue    : 1
 
   - Id          : BrokerReceiveMaximum
-    Name        : "BrokerReceiveMaximum"
+    Name        : "Broker receive maximum"
     Description : "The messages published without waiting for their acknowledgement. An MQTT 5.0 broker may lower it further."
     DataType    : UInt16
     DefaultValue: 100

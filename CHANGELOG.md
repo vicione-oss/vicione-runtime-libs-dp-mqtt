@@ -18,6 +18,11 @@
 - Update `MQTTnet.Extensions` to `2.0.0`
 - **Breaking:** Reject an invalid TLS configuration instead of falling back to an unencrypted or
   unauthenticated connection
+- **Breaking:** Rename the root Id `MQTTDataPort` to `MqttDataPort` and the connection node Id
+  `MQTT-Broker` to `MqttClientInstance`, now shown as `Client`. Configurations using the old Ids
+  fail to deploy
+- Write the display names in sentence case, add the number to the QoS labels and the unit to
+  `Session expiry interval (s)`
 - **Breaking:** Require the `ws` or the `wss` scheme for the WebSocket broker url, which was
   accepted without a scheme and then left the connection unencrypted
 - Offer the session expiry interval only for MQTT 5.0 and the SSL protocol only for a TCP endpoint,
