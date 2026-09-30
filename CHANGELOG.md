@@ -48,6 +48,7 @@
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 - Clarify the property names and descriptions of the MQTT DataPort
 - Rename the MQTT DataPort property category `Other` to `Messaging`
+- Update `ViciOne.Suite.DataPort` to `1.0.0`
 
 ### Fixed
 
