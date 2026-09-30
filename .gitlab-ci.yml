@@ -165,7 +165,7 @@ include:
         - apt update
         - apt install jq zip -y
   # Prerelease metadata to dev repository ###
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v1.0.0
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v2.0.1
     inputs:
       name: "Push binaries (dev)"
       stage: publish
@@ -179,7 +179,7 @@ include:
         - "artifacts/**/*json"
         - "artifacts/**/*zip"
   # Release metadata (on tag) ###
-  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v1.0.0
+  - component: $CI_SERVER_FQDN/vicione-oss/tooling/components/jfrog/release@v2.0.1
     inputs:
       name: "Push binaries (staging)"
       stage: publish
