@@ -143,10 +143,13 @@ internal sealed class MqttTreeHandlerOutgoing
         private readonly Dictionary<Guid, string> _nodeTopics = [];
         private readonly Serializer _defaultSerializer = properties.DefaultSerializer;
         private readonly MqttQualityOfServiceLevel _qualityOfService = properties.QualityOfService;
+        private readonly Dictionary<Guid, MqttQualityOfServiceLevel> _nodeQualityOfService = [];
 
         public override void Initialize()
         {
             var idNodes = communication.Nodes.ToDictionary(n => n.Id, n => (INode)n);
+            foreach (var node in idNodes.Values)
+                _nodeQualityOfService.Add(node.Id, node.GetQualityOfService() ?? _qualityOfService);
             Initialize(communication.Nodes, node => _nodeTopics.Add(node.Id, GenerateTopic(node.GetRoute(idNodes))));
         }
 
@@ -179,7 +182,7 @@ internal sealed class MqttTreeHandlerOutgoing
         {
             var builder = new MqttApplicationMessageBuilder()
                 .WithTopic(_nodeTopics[node.Id])
-                .WithQualityOfServiceLevel(_qualityOfService)
+                .WithQualityOfServiceLevel(_nodeQualityOfService[node.Id])
                 .WithPayload(payload);
             if (node.TryGetProperty(MqttNodeProperties.Retain, out var property) && property.GetValue<bool>())
                 builder.WithRetainFlag();

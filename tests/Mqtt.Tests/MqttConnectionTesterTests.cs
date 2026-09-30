@@ -18,6 +18,7 @@ public class MqttConnectionTester_TestConnectionAsync
             Host = "localhost",
             Port = 1883,
             ProtocolVersion = 1,
+            TlsMode = 0,
         };
 
         try
@@ -38,6 +39,7 @@ public class MqttConnectionTester_TestConnectionAsync
             Host = "localhost",
             Port = 1883,
             ProtocolVersion = 1,
+            TlsMode = 0,
         };
 
         var act = FluentActions.Awaiting(() => MqttConnectionTester.TestConnectionAsync(communication));

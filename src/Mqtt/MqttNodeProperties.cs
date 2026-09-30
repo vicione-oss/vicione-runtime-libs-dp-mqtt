@@ -4,4 +4,5 @@ internal static class MqttNodeProperties
 {
     internal const string Retain = "Retain";
     internal const string Serializer = "Serializer";
+    internal const string QualityOfServiceOverride = "QualityOfServiceOverride";
 }

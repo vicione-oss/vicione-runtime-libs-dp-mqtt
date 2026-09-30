@@ -257,7 +257,7 @@ public class YamlTests
             .Single(p => p.Id == "Protocol")
             .DependentProperties;
 
-        dependentProperties["SslProtocol"].Should().Equal(["0"]);
+        dependentProperties["TlsMode"].Should().Equal(["0"]);
         dependentProperties["Url"].Should().Equal(["1"]);
     }
 
@@ -292,11 +292,11 @@ public class YamlTests
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
 
         var dependentProperties = metadata.PropertyTypes
-            .Single(p => p.Id == "DisableCertificateValidation")
+            .Single(p => p.Id == "ValidateCertificateChain")
             .DependentProperties;
 
         dependentProperties.Should().ContainKey("CertificateAuthorityFile");
-        dependentProperties["CertificateAuthorityFile"].Should().Equal(["false"]);
+        dependentProperties["CertificateAuthorityFile"].Should().Equal(["true"]);
     }
 
     private static bool Validate(string propertyId, string value)
@@ -310,5 +310,47 @@ public class YamlTests
         validations.Should().NotBeNullOrEmpty();
 
         return validations.All(v => v.Validate(value).IsValid);
+    }
+
+    [Fact]
+    public void Node_property_ids_should_be_in_yaml()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+        var nodePropertiesType = typeof(MqttNodeProperties);
+
+        var yamlPropertyIds = metadata.PropertyTypes
+            .Select(p => p.Id)
+            .ToHashSet();
+
+        var expectedPropertyIds = nodePropertiesType
+            .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetValue(null)!)
+            .ToHashSet();
+
+        expectedPropertyIds.Except(yamlPropertyIds)
+            .Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Node_properties_should_be_offered_by_a_node_type()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+        var nodePropertiesType = typeof(MqttNodeProperties);
+
+        var referencedPropertyIds = metadata.NodeTypes
+            .SelectMany(n => n.PropertyCategories)
+            .SelectMany(c => c.Properties)
+            .Select(p => p.Id)
+            .ToHashSet();
+
+        var expectedPropertyIds = nodePropertiesType
+            .GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.DeclaredOnly)
+            .Where(f => f.IsLiteral && !f.IsInitOnly && f.FieldType == typeof(string))
+            .Select(f => (string)f.GetValue(null)!)
+            .ToHashSet();
+
+        expectedPropertyIds.Except(referencedPropertyIds)
+            .Should().BeEmpty();
     }
 }

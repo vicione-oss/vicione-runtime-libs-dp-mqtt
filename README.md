@@ -2,10 +2,20 @@
 
 ## Node properties
 
-| Name       | Incoming | Outgoing | Typ    | Values                                                |
-|------------|:--------:|:--------:|--------|-------------------------------------------------------|
-| Retain     |    ❌    |    ✔️    | `bool` | `true`/`false`                                        |
-| Serializer |    ✔️    |    ✔️    | `byte` | `0`=Inherit from parent node, `1`=JSON, `2`=PlainText |
+| Name                     | Incoming | Outgoing | Typ    | Values                                                                         |
+|--------------------------|:--------:|:--------:|--------|--------------------------------------------------------------------------------|
+| Retain                   |    ❌    |    ✔️    | `bool` | `true`/`false`                                                                 |
+| Serializer               |    ✔️    |    ✔️    | `byte` | `0`=Inherit from broker, `1`=JSON, `2`=PlainText                               |
+| QualityOfServiceOverride |    ✔️    |    ✔️    | `byte` | `0`=Inherit from broker, `1`=At most once, `2`=At least once, `3`=Exactly once |
+
+A data point's quality-of-service override applies to its subscription as well as to what it
+publishes. Where several data points share a topic and their effective levels disagree, the subscription
+uses the highest requested level and a warning naming the topic is logged — a data point then
+receives a stronger guarantee than it asked for, never a weaker one.
+
+Node properties apply to data points. A folder that is itself configured with a transfer mode
+publishes its children as one grouped message, and that message uses the broker-level settings -
+a folder carries no node properties of its own.
 
 ## Envelope children
 

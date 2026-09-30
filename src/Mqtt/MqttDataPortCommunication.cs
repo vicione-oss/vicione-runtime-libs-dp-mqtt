@@ -20,17 +20,20 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
     public string? CertificateFilePassword { get; set; }
     public string? CertificatePrivateKeyFile { get; set; }
     public string? CertificateAuthorityFile { get; set; }
-    public byte? SslProtocol { get; set; }
-    public bool? DisableCertificateValidation { get; set; }
+    public byte? TlsMode { get; set; }
+    public bool? ValidateCertificateChain { get; set; }
     public bool? CleanSession { get; set; }
     public uint? SessionExpiryInterval { get; set; }
+    public bool? LastWillEnabled { get; set; }
     public string? WillTopic { get; set; }
     public string? WillMessage { get; set; }
     public bool? WillRetain { get; set; }
+    public byte? WillQualityOfService { get; set; }
     public bool Pooling { get; set; }
     public int? MaxPendingMessages { get; set; }
     public byte? DefaultSerializer { get; set; }
     public ushort? BrokerReceiveMaximum { get; set; }
+    public ushort? ClientReceiveMaximum { get; set; }
 
     /// <summary>
     /// The generated text representation of a record prints every property, which writes the
@@ -54,17 +57,20 @@ public sealed record class MqttDataPortCommunication : DataPortCommunication
         builder.Append(", CertificateFilePassword = ").Append(Redacted(CertificateFilePassword));
         builder.Append(", CertificatePrivateKeyFile = ").Append(Redacted(CertificatePrivateKeyFile));
         builder.Append(", CertificateAuthorityFile = ").Append(CertificateAuthorityFile);
-        builder.Append(", SslProtocol = ").Append(SslProtocol);
-        builder.Append(", DisableCertificateValidation = ").Append(DisableCertificateValidation);
+        builder.Append(", TlsMode = ").Append(TlsMode);
+        builder.Append(", ValidateCertificateChain = ").Append(ValidateCertificateChain);
         builder.Append(", CleanSession = ").Append(CleanSession);
         builder.Append(", SessionExpiryInterval = ").Append(SessionExpiryInterval);
+        builder.Append(", LastWillEnabled = ").Append(LastWillEnabled);
         builder.Append(", WillTopic = ").Append(WillTopic);
         builder.Append(", WillMessage = ").Append(WillMessage);
         builder.Append(", WillRetain = ").Append(WillRetain);
+        builder.Append(", WillQualityOfService = ").Append(WillQualityOfService);
         builder.Append(", Pooling = ").Append(Pooling);
         builder.Append(", MaxPendingMessages = ").Append(MaxPendingMessages);
         builder.Append(", DefaultSerializer = ").Append(DefaultSerializer);
         builder.Append(", BrokerReceiveMaximum = ").Append(BrokerReceiveMaximum);
+        builder.Append(", ClientReceiveMaximum = ").Append(ClientReceiveMaximum);
 
         return true;
     }

@@ -57,20 +57,23 @@ Nodes:
           - Id             : SessionExpiryInterval
           - Id             : MaxPendingMessages
           - Id             : BrokerReceiveMaximum
+          - Id             : ClientReceiveMaximum
       - Id                 : LastWill
         Properties         :
+          - Id             : LastWillEnabled
           - Id             : WillTopic
           - Id             : WillMessage
           - Id             : WillRetain
+          - Id             : WillQualityOfService
       - Id                 : Certificate
         Properties         :
-          - Id             : SslProtocol
+          - Id             : TlsMode
           - Id             : CertificateFile
           - Id             : CertificateFilePassword
           - Id             : CertificatePrivateKeyFile
           - Id             : CertificateAuthorityFile
-          - Id             : DisableCertificateValidation
-      - Id                 : Other
+          - Id             : ValidateCertificateChain
+      - Id                 : Messaging
         Properties         :
           - Id             : QualityOfService
             Required       : true
@@ -122,10 +125,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointInteger
     MappingId              : Topic
@@ -149,10 +153,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointFloat
     MappingId              : Topic
@@ -176,10 +181,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointDateTime
     MappingId              : Topic
@@ -203,10 +209,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointString
     MappingId              : Topic
@@ -230,10 +237,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   - Id                     : DataPointBinary
     MappingId              : Topic
@@ -257,10 +265,11 @@ Nodes:
       - Id                 : Type
         MaxInstances       : 1
     PropertyCategories     :
-      - Id                 : Other
+      - Id                 : Messaging
         Properties         :
           - Id             : Retain
           - Id             : Serializer
+          - Id             : QualityOfServiceOverride
 
   # -------------------- Envelope children -------------------------------
 
@@ -326,9 +335,9 @@ PropertyCategories:
     Name        : "Last will"
     Description : "Last Will properties"
 
-  - Id          : Other
-    Name        : "Other"
-    Description : "Other properties"
+  - Id          : Messaging
+    Name        : "Messaging"
+    Description : "Messaging properties"
 
 Properties:
   - Id          : ClientId
@@ -336,6 +345,17 @@ Properties:
     Description : "The identifier this client registers with at the broker. Left empty the broker assigns one, which no session can be resumed with."
     DataType    : String
     UiControl   : TextBox
+
+  - Id                 : LastWillEnabled
+    Name               : "Last will enabled"
+    Description        : "Publish a last will message when the connection is lost unexpectedly."
+    DataType           : Bool
+    DefaultValue       : false
+    UiControl          : CheckBox
+    DependentProperties: { 'WillTopic'           : [true],
+                           'WillMessage'         : [true],
+                           'WillRetain'          : [true],
+                           'WillQualityOfService': [true] }
 
   - Id          : WillTopic
     Name        : "Will topic"
@@ -360,6 +380,18 @@ Properties:
     DefaultValue: false
     UiControl   : CheckBox
 
+  - Id          : WillQualityOfService
+    Name        : "Will quality of service"
+    Description : "Delivery guarantee for the last will message."
+    DataType    : UInt8
+    DefaultValue: 0
+    UiControl   : NumericListBox
+    MinValue    : 0
+    MaxValue    : 2
+    Elements    : { 0: 'At most once',
+                    1: 'At least once',
+                    2: 'Exactly once' }
+
   - Id                 : Protocol
     Name               : "Protocol"
     Description        : "The protocol used to contact the broker"
@@ -373,7 +405,7 @@ Properties:
     DependentProperties: { 'Host'       : [0],
                            'Port'       : [0],
                            'Url'        : [1],
-                           'SslProtocol': [0] }
+                           'TlsMode'    : [0] }
 
   - Id          : Host
     Name        : "Host"
@@ -391,10 +423,10 @@ Properties:
     DataType    : UInt16
     UiControl   : NumericUpDown
     MinValue    : 1
-    DefaultValue: 1883
+    DefaultValue: 8883
 
   - Id          : Url
-    Name        : "Url"
+    Name        : "URL"
     Description : "The broker url for WebSocket. Only 'ws' and 'wss' are supported, of which 'wss' is encrypted. Required for the WebSocket protocol."
     DataType    : Uri
     UiControl   : TextBox
@@ -405,7 +437,7 @@ Properties:
 
   - Id          : QualityOfService
     Name        : "Quality of service"
-    Description : "The delivery guarantee used for published messages and for the will message."
+    Description : "Delivery guarantee applied to all topics of this broker unless a data point overrides it."
     DataType    : UInt8
     DefaultValue: 0
     UiControl   : NumericListBox
@@ -463,25 +495,26 @@ Properties:
     DataType    : String
     UiControl   : TextBox
 
-  - Id          : SslProtocol
-    Name        : "SSL protocol"
-    Description : "The TLS version enforced for a TCP connection. 'None' does not mean the version of the system, it means that this setting does not encrypt the connection; once a certificate encrypts it, leaving 'None' negotiates TLS 1.2 or 1.3."
-    DataType    : UInt8
-    DefaultValue: 0
-    UiControl   : NumericListBox
-    MinValue    : 0
-    MaxValue    : 2
-    Elements    : { 0: 'None',
-                    1: 'TLSv1.2',
-                    2: 'TLSv1.3' }
+  - Id                 : TlsMode
+    Name               : "TLS"
+    Description        : "Transport encryption for a TCP connection. Selecting 'No TLS' also requires setting the port back to 1883."
+    DataType           : UInt8
+    DefaultValue       : 1
+    UiControl          : NumericListBox
+    MinValue           : 0
+    MaxValue           : 3
+    Elements           : { 0: 'No TLS (plaintext)',
+                           1: 'Automatic (TLS 1.2 or 1.3)',
+                           2: 'TLS 1.2 only',
+                           3: 'TLS 1.3 only' }
 
-  - Id                 : DisableCertificateValidation
-    Name               : "Disable certificate validation"
-    Description        : "Accept any broker certificate. It contradicts the certificate authority file, which validates the broker."
+  - Id                 : ValidateCertificateChain
+    Name               : "Validate certificate chain"
+    Description        : "Check the broker certificate against the trust store. Turning this off keeps the connection encrypted but leaves the broker unauthenticated - use only for lab or migration setups."
     DataType           : Bool
-    DefaultValue       : false
+    DefaultValue       : true
     UiControl          : CheckBox
-    DependentProperties: { 'CertificateAuthorityFile': [false] }
+    DependentProperties: { 'CertificateAuthorityFile': [true] }
 
   - Id          : CleanSession
     Name        : "Clean session"
@@ -527,6 +560,19 @@ Properties:
                     1: 'JSON',
                     2: 'PlainText', }
 
+  - Id          : QualityOfServiceOverride
+    Name        : "Quality of service"
+    Description : "Delivery guarantee for this data point. Inherited takes the value from the broker."
+    DataType    : UInt8
+    DefaultValue: 0
+    UiControl   : NumericListBox
+    MinValue    : 0
+    MaxValue    : 3
+    Elements    : { 0: 'Inherited',
+                    1: 'At most once',
+                    2: 'At least once',
+                    3: 'Exactly once' }
+
   - Id          : Pooling
     Name        : "Pooling"
     Description : "Pooling is a technique that involves creating and maintaining a pool of connections, which are then reused."
@@ -544,11 +590,20 @@ Properties:
 
   - Id          : BrokerReceiveMaximum
     Name        : "Broker receive maximum"
-    Description : "The messages published without waiting for their acknowledgement. An MQTT 5.0 broker may lower it further."
+    Description : "Maximum number of QoS 1 and QoS 2 messages the broker may have in flight unacknowledged (MQTT v5 Receive Maximum). The client library refuses more than 100."
     DataType    : UInt16
     DefaultValue: 100
     UiControl   : NumericUpDown
     MaxValue    : 100
+    MinValue    : 1
+
+  - Id          : ClientReceiveMaximum
+    Name        : "Client receive maximum"
+    Description : "Maximum number of QoS 1 and QoS 2 messages this client accepts in flight unacknowledged (MQTT v5 Receive Maximum). 65535 is the protocol default."
+    DataType    : UInt16
+    DefaultValue: 65535
+    UiControl   : NumericUpDown
+    MaxValue    : 65535
     MinValue    : 1
 
 Icons:

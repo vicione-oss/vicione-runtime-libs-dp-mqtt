@@ -10,9 +10,17 @@
 - Add `CertificateAuthorityFile` to validate the MQTT broker against a private PKI instead of having
   to disable the certificate validation. A self-signed broker certificate configured there anchors on
   itself, which trusts that one broker and nothing else
+- Add the `ClientReceiveMaximum` option to the MQTT DataPort (MQTT v5.0 only; ignored on v3.1.1)
+- Add the `WillQualityOfService` option to the MQTT DataPort
+- Add the `LastWillEnabled` option to the MQTT DataPort
+- Add a per-data-point quality-of-service override to the MQTT DataPort; where data points sharing a topic disagree, the subscription uses the highest and logs a warning naming the topic
+- Support brokers that accept either TLS 1.2 or TLS 1.3 with the `Automatic` TLS mode
 
 ### Changed
 
+- **Breaking**: MQTT connections over TCP use TLS by default. `SslProtocol` is replaced by `TlsMode`, and the stored value is not carried over, so existing plaintext connections must select "No TLS (plaintext)" explicitly. Newly created brokers are seeded with port 8883 instead of 1883; existing brokers keep the port they hold. A WebSocket connection is still encrypted by its `wss` scheme. A warning names a TLS mode that contradicts the conventional port 1883 or 8883
+- **Breaking**: `DisableCertificateValidation` is replaced by `ValidateCertificateChain` with inverted semantics. The stored value is not carried over and the new option defaults to on, so a broker with a self-signed or private certificate needs either its authority in `CertificateAuthorityFile` or the validation switched off
+- **Breaking**: the MQTT last will is only published when `LastWillEnabled` is set; existing configurations must enable it explicitly
 - Update `Mqtt.yaml` to the `2.0.0` file format of `ViciOne.Tree.Builder`
 - Rename the company to `ViciOne open automation gmbh` in the package metadata, the license and the `Author` of the `.yaml` files
 - Update `MQTTnet.Extensions` to `2.0.0`
@@ -38,6 +46,8 @@
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
   subtype the sender names in `Type`, so a publisher can no longer decide which type the port loads
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
+- Clarify the property names and descriptions of the MQTT DataPort
+- Rename the MQTT DataPort property category `Other` to `Messaging`
 
 ### Fixed
 
@@ -54,6 +64,9 @@
   communication, which exposed them to every log sink
 - Log the warnings about insecure connection settings for an unpooled MQTT client too, where they
   were dropped
+- Correct the description of `BrokerReceiveMaximum` in the MQTT DataPort
+- The MQTT last will no longer reuses the quality of service configured for data
+- Cancel the MQTT subscriptions of a clean session before the client disconnects rather than after it, so the broker can receive the unsubscribe; the managed client sends it asynchronously, so this stays best effort. A persistent session keeps its subscriptions on the broker
 
 ## 1.0.0 - 2026-05-18
 
