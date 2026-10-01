@@ -287,6 +287,32 @@ public class YamlTests
     }
 
     [Fact]
+    public void Names_the_will_quality_of_service_levels_like_the_broker_setting()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var elements = metadata.PropertyTypes
+            .Single(p => p.Id == "WillQualityOfService")
+            .Elements;
+
+        elements.Should().HaveCount(3);
+        elements.Values.Should().Equal("At most once (0)", "At least once (1)", "Exactly once (2)");
+    }
+
+    [Fact]
+    public void Names_the_data_point_quality_of_service_levels_like_the_broker_setting()
+    {
+        var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
+
+        var elements = metadata.PropertyTypes
+            .Single(p => p.Id == "QualityOfServiceOverride")
+            .Elements;
+
+        elements.Should().HaveCount(4);
+        elements.Values.Should().Equal("Inherited", "At most once (0)", "At least once (1)", "Exactly once (2)");
+    }
+
+    [Fact]
     public void Hides_the_broker_validation_when_the_certificate_validation_is_disabled()
     {
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
