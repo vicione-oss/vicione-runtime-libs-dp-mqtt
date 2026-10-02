@@ -40,10 +40,16 @@ internal sealed class EnvelopeChildren
     internal bool TryGetChild(string channel, out EnvelopeChild child)
         => _byChannel.TryGetValue(channel, out child!);
 
+    /// <remarks>
+    /// Each port receives the whole tree, and a node it does not exchange arrives without a channel.
+    /// The children of such a parent are left to the port of the other direction, which receives
+    /// the same tree with the parent's channels filled in. A child this port does exchange stays,
+    /// so a parent that cannot carry it is still reported.
+    /// </remarks>
     internal static EnvelopeChildren Create(IReadOnlyCollection<INode> nodes, bool supportsUserProperties)
     {
         var nodesById = nodes.ToDictionary(n => n.Id);
-        var childrenByParent = GroupByParent(nodes, nodesById);
+        var childrenByParent = GroupByParent(nodes.Where(n => !IsChildOfUnexchangedParent(n, nodesById)), nodesById);
         var violations = FindViolations(childrenByParent, nodesById, supportsUserProperties);
 
         if (violations.Count != 0)
@@ -52,7 +58,18 @@ internal sealed class EnvelopeChildren
         return new(childrenByParent, MapChannels(childrenByParent));
     }
 
-    private static Dictionary<Guid, EnvelopeChild[]> GroupByParent(IReadOnlyCollection<INode> nodes, Dictionary<Guid, INode> nodesById)
+    private static bool IsChildOfUnexchangedParent(INode node, Dictionary<Guid, INode> nodesById)
+        => GetKind(node) is not null
+        && !IsExchanged(node)
+        && node.ParentId is { } parentId
+        && nodesById.TryGetValue(parentId, out var parent)
+        && GetKind(parent) is null
+        && !IsExchanged(parent);
+
+    private static bool IsExchanged(INode node)
+        => node.AffectedChannels.Count != 0 || node.TransferredChannels.Count != 0;
+
+    private static Dictionary<Guid, EnvelopeChild[]> GroupByParent(IEnumerable<INode> nodes, Dictionary<Guid, INode> nodesById)
     {
         Dictionary<Guid, List<EnvelopeChild>> childrenByParent = [];
 
@@ -158,8 +175,9 @@ internal sealed class EnvelopeChildren
 
             // Only a user property carries a value the engine must supply; the fixed children are
             // derived from the parent, and a Timestamp is written by the port outbound and only
-            // read by the engine inbound.
-            if (child.Channel.Length == 0 && child.Kind == EnvelopeChildKind.UserProperty)
+            // read by the engine inbound. A user property without any channel in this port is
+            // exchanged in the other direction, if at all.
+            if (child.Channel.Length == 0 && child.Kind == EnvelopeChildKind.UserProperty && IsExchanged(child.Node))
                 violations.Add($"'{child.Node.Name}' is an envelope child of '{parent.Name}', which transfers none of its channels, so its value can never be exchanged.");
 
             if (child.Kind == EnvelopeChildKind.UserProperty)

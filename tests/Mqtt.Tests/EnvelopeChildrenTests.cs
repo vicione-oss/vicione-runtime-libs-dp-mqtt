@@ -219,6 +219,99 @@ public class EnvelopeChildren_Create
         children.TryGetChild(string.Empty, out _).Should().BeFalse();
     }
 
+    /// <summary>
+    /// Each port receives the whole tree, and the data points of the other direction arrive without
+    /// a channel. Their envelope children are served by the other port.
+    /// </summary>
+    [Fact]
+    public void Skips_a_parent_this_port_does_not_exchange()
+    {
+        var outboundOnly = Parent("temperature");
+        Node site = new() { Id = Guid.NewGuid(), ParentId = outboundOnly.Id, Name = "site", DesignId = MqttNodeDesignId.UserProperty, };
+
+        var children = EnvelopeChildren.Create(
+            [outboundOnly, FixedChild(outboundOnly, MqttNodeDesignId.Timestamp, "when"), site,],
+            supportsUserProperties: true);
+
+        children.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Skips_a_parent_this_port_does_not_exchange_even_on_a_protocol_that_cannot_carry_children()
+    {
+        var outboundOnly = Parent("temperature");
+
+        var act = () => EnvelopeChildren.Create([outboundOnly, FixedChild(outboundOnly, MqttNodeDesignId.Timestamp, "when"),], supportsUserProperties: false);
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Accepts_a_user_property_this_port_does_not_exchange()
+    {
+        var loop = Parent("loop", "l");
+        Node unit = new() { Id = Guid.NewGuid(), ParentId = loop.Id, Name = "unit", DesignId = MqttNodeDesignId.UserProperty, };
+
+        var children = EnvelopeChildren.Create([loop, unit,], supportsUserProperties: true);
+
+        children.Of(loop.Id).Should().ContainSingle().Which.Channel.Should().BeEmpty();
+        children.TryGetChild(string.Empty, out _).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Rejects_a_user_property_this_port_exchanges_under_a_parent_it_does_not()
+    {
+        var outboundOnly = Parent("temperature");
+        Node unit = new()
+        {
+            Id = Guid.NewGuid(),
+            ParentId = outboundOnly.Id,
+            Name = "unit",
+            DesignId = MqttNodeDesignId.UserProperty,
+            AffectedChannels = { "u", },
+        };
+
+        var act = () => EnvelopeChildren.Create([outboundOnly, unit,], supportsUserProperties: true);
+
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*'temperature' has envelope children but transfers no value of its own*");
+    }
+
+    [Fact]
+    public void Accepts_the_incoming_and_the_outgoing_half_of_one_tree()
+    {
+        var temperature = Parent("temperature");
+        var setpoint = Parent("setpoint");
+        var temperatureWhen = FixedChild(temperature, MqttNodeDesignId.Timestamp, "when");
+        var setpointWhen = FixedChild(setpoint, MqttNodeDesignId.Timestamp, "when");
+        var incoming = Half(temperature, setpoint, temperatureWhen, setpointWhen, transferred: setpoint, channel: "s");
+        var outgoing = Half(temperature, setpoint, temperatureWhen, setpointWhen, transferred: temperature, channel: "t");
+
+        var incomingChildren = EnvelopeChildren.Create(incoming, supportsUserProperties: true);
+        var outgoingChildren = EnvelopeChildren.Create(outgoing, supportsUserProperties: true);
+
+        incomingChildren.Of(setpoint.Id).Should().ContainSingle();
+        incomingChildren.Of(temperature.Id).Should().BeEmpty();
+        outgoingChildren.Of(temperature.Id).Should().ContainSingle();
+        outgoingChildren.Of(setpoint.Id).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Rejects_a_group_member_without_a_message_of_its_own()
+    {
+        Node member = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "x",
+            DesignId = MqttNodeDesignId.Topic,
+            AffectedChannels = { "g", },
+        };
+
+        var act = () => EnvelopeChildren.Create([member, FixedChild(member, MqttNodeDesignId.Timestamp, "when"),], supportsUserProperties: true);
+
+        act.Should().Throw<InvalidOperationException>().WithMessage("*'x' has envelope children but transfers no value of its own*");
+    }
+
     [Fact]
     public void Rejects_a_child_whose_parent_is_not_part_of_the_data_port()
     {
@@ -266,6 +359,29 @@ public class EnvelopeChildren_Create
             AffectedChannels = { channel, },
             TransferredChannels = { channel, },
         };
+
+    private static Node Parent(string name)
+        => new() { Id = Guid.NewGuid(), Name = name, DesignId = MqttNodeDesignId.Topic, };
+
+    /// <summary>
+    /// The node list one direction receives: every node of the tree, of which only
+    /// <paramref name="transferred"/> carries a channel, as cluster management builds it.
+    /// </summary>
+    private static List<INode> Half(Node first, Node second, Node firstChild, Node secondChild, Node transferred, string channel)
+        => [.. new[] { first, second, firstChild, secondChild, }.Select(n => (INode)Copy(n, n == transferred ? channel : null))];
+
+    private static Node Copy(Node node, string? channel)
+    {
+        Node copy = new() { Id = node.Id, ParentId = node.ParentId, Name = node.Name, DesignId = node.DesignId, };
+
+        if (channel is not null)
+        {
+            copy.AffectedChannels.Add(channel);
+            copy.TransferredChannels.Add(channel);
+        }
+
+        return copy;
+    }
 
     private static Node FixedChild(Node parent, string designId, string name)
         => new()
