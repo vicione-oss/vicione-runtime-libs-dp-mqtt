@@ -1509,6 +1509,71 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             e.Level == LogLevel.Warning && e.Message.Contains("value"));
     }
 
+    [Theory]
+    [InlineData("21,5")]
+    [InlineData("1.5 garbage")]
+    [InlineData("17 }")]
+    [InlineData("1.5 2.5")]
+    public async Task Forwards_no_value_if_the_payload_continues_after_its_json_value_Async(string payload)
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(CreateTreeOf(typeof(double)), logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload(payload)
+            .Build());
+
+        messages.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value"));
+    }
+
+    [Theory]
+    [InlineData("21.5 ")]
+    [InlineData("21.5\r\n")]
+    [InlineData(" 21.5\t")]
+    public async Task Reads_a_payload_surrounded_by_whitespace_Async(string payload)
+    {
+        var messages = await ReceiveAsync(CreateTreeOf(typeof(double)), new FakeLogger<MqttDataPortIncoming>(), new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload(payload)
+            .Build());
+
+        messages.Should().ContainSingle().Which.Value.Should().Be(21.5);
+    }
+
+    [Fact]
+    public async Task Forwards_no_member_if_the_group_message_continues_after_its_json_object_Async()
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveGroupOfOneAsync(typeof(int), logger, new MqttApplicationMessageBuilder()
+            .WithPayload("""{"value":23} junk"""));
+
+        messages.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("group"));
+    }
+
+    private static MqttDataPortCommunication CreateTreeOf(Type valueType)
+    {
+        Node valueNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "value",
+            AffectedChannels = { "v", },
+            TransferredChannels = { "v", },
+            DesignId = MqttNodeDesignId.Topic,
+            ValueType = valueType,
+        };
+
+        return new()
+        {
+            Nodes = [valueNode,],
+            Host = "local",
+        };
+    }
+
     /// <summary>
     /// A data point the tree gives no data type has nothing to read its payload with. The type a
     /// publisher declares is not consulted for it either, so there is no value to forward.
