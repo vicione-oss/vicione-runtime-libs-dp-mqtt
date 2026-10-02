@@ -11,7 +11,7 @@ namespace ViciOne.Suite.DataPort;
 /// type is refused instead of read as infinity. <c>NaN</c>, <c>Infinity</c> and <c>-Infinity</c>
 /// have no JSON number, so they travel as a string holding their name.
 /// </summary>
-internal sealed class FiniteFloatJsonConverter<T> : JsonConverter<T>
+internal sealed class RangeCheckedFloatJsonConverter<T> : JsonConverter<T>
     where T : struct, IFloatingPointIeee754<T>
 {
     public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)

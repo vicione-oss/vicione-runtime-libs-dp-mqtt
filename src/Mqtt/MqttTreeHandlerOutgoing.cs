@@ -156,14 +156,14 @@ internal sealed class MqttTreeHandlerOutgoing
         protected override MqttApplicationMessageBuilder HandleGroupNode(INode node, JsonObject data, JsonObject meta, IReadOnlyCollection<ExternalValue> values)
         {
             var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(data, JsonSetup.PreserveTypeOptions);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(data, JsonSetup.PayloadOptions);
             var builder = CreateDefaultBuilder(node, serializer, payload);
             // A folder cannot declare envelope children, so its message keeps the envelope 1.0.0 sent.
             if (supportsExtendedProtocol)
             {
                 AddProperty(builder, MqttUserProperties.Timestamp, MqttTextCodec.FormatTimestamp(values.Max(v => v.Timestamp)));
                 AddProperty(builder, MqttUserProperties.Validity, MqttTextCodec.FormatValidity(values.Min(v => v.Validity)));
-                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta, JsonSetup.PreserveTypeOptions));
+                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta, JsonSetup.PayloadOptions));
             }
             return builder;
         }
@@ -172,7 +172,7 @@ internal sealed class MqttTreeHandlerOutgoing
         {
             var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
             var type = value.Value?.GetType() ?? typeof(object);
-            var payload = serializer.Serialize(value.Value, type, JsonSetup.PreserveTypeOptions);
+            var payload = serializer.Serialize(value.Value, type, JsonSetup.PayloadOptions);
             var builder = CreateDefaultBuilder(node, serializer, payload);
             owner.AddEnvelope(builder, node, value);
             return builder;

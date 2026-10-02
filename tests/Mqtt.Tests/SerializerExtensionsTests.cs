@@ -29,12 +29,12 @@ public class SerializerExtensions_Serialize
 
     [Fact]
     public void Writes_a_json_string_with_the_characters_it_holds()
-        => Encoding.UTF8.GetString(Serializer.Json.Serialize("äöü € <a> & 'b'", typeof(string), JsonSetup.PreserveTypeOptions))
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize("äöü € <a> & 'b'", typeof(string), JsonSetup.PayloadOptions))
             .Should().Be("\"äöü € <a> & 'b'\"");
 
     [Fact]
     public void Escapes_what_a_json_string_cannot_hold()
-        => Encoding.UTF8.GetString(Serializer.Json.Serialize("\"\\\n", typeof(string), JsonSetup.PreserveTypeOptions))
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize("\"\\\n", typeof(string), JsonSetup.PayloadOptions))
             .Should().Be("""
                 "\"\\\n"
                 """);
@@ -43,7 +43,7 @@ public class SerializerExtensions_Serialize
     [InlineData(DateTimeKind.Utc)]
     [InlineData(DateTimeKind.Unspecified)]
     public void Writes_a_json_date_in_utc(DateTimeKind kind)
-        => Encoding.UTF8.GetString(Serializer.Json.Serialize(new DateTime(2026, 10, 2, 6, 0, 0, 500, kind), typeof(DateTime), JsonSetup.PreserveTypeOptions))
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize(new DateTime(2026, 10, 2, 6, 0, 0, 500, kind), typeof(DateTime), JsonSetup.PayloadOptions))
             .Should().Be("\"2026-10-02T06:00:00.5000000Z\"");
 
     [Fact]
@@ -51,7 +51,7 @@ public class SerializerExtensions_Serialize
     {
         var local = new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc).ToLocalTime();
 
-        var result = Serializer.Json.Serialize(local, typeof(DateTime), JsonSetup.PreserveTypeOptions);
+        var result = Serializer.Json.Serialize(local, typeof(DateTime), JsonSetup.PayloadOptions);
 
         Encoding.UTF8.GetString(result).Should().Be("\"2026-10-02T06:00:00.0000000Z\"");
     }
@@ -62,7 +62,7 @@ public class SerializerExtensions_Serialize
     [InlineData(double.NegativeInfinity, "\"-Infinity\"")]
     [InlineData(double.MaxValue, "1.7976931348623157E+308")]
     public void Writes_a_json_float_that_is_not_a_finite_number_as_its_name(double value, string expected)
-        => Encoding.UTF8.GetString(Serializer.Json.Serialize(value, typeof(double), JsonSetup.PreserveTypeOptions)).Should().Be(expected);
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize(value, typeof(double), JsonSetup.PayloadOptions)).Should().Be(expected);
 
     public static TheoryData<Serializer, object?, string?, Type> GetData()
         => new()
@@ -140,7 +140,7 @@ public class SerializerExtensions_Deserialize
     {
         var data = Encoding.UTF8.GetBytes(value);
 
-        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PreserveTypeOptions).Should().BeOfType<DateTime>().Which;
+        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PayloadOptions).Should().BeOfType<DateTime>().Which;
 
         result.Should().Be(new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc));
         result.Kind.Should().Be(DateTimeKind.Utc);
@@ -151,7 +151,7 @@ public class SerializerExtensions_Deserialize
     {
         var data = Encoding.UTF8.GetBytes("\"2026-10-02\"");
 
-        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PreserveTypeOptions);
+        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PayloadOptions);
 
         result.Should().Be(new DateTime(2026, 10, 2, 0, 0, 0, DateTimeKind.Utc));
     }
@@ -165,7 +165,7 @@ public class SerializerExtensions_Deserialize
     {
         var data = Encoding.UTF8.GetBytes(value);
 
-        var act = () => Serializer.Json.Deserialize(data, type, JsonSetup.PreserveTypeOptions);
+        var act = () => Serializer.Json.Deserialize(data, type, JsonSetup.PayloadOptions);
 
         act.Should().Throw<JsonException>();
     }
@@ -179,14 +179,14 @@ public class SerializerExtensions_Deserialize
     {
         var data = Encoding.UTF8.GetBytes(value);
 
-        var result = Serializer.Json.Deserialize(data, typeof(double), JsonSetup.PreserveTypeOptions);
+        var result = Serializer.Json.Deserialize(data, typeof(double), JsonSetup.PayloadOptions);
 
         result.Should().Be(expected);
     }
 
     [Fact]
     public void Reads_a_single_precision_json_float_by_its_name()
-        => Serializer.Json.Deserialize("\"NaN\""u8.ToArray(), typeof(float), JsonSetup.PreserveTypeOptions).Should().Be(float.NaN);
+        => Serializer.Json.Deserialize("\"NaN\""u8.ToArray(), typeof(float), JsonSetup.PayloadOptions).Should().Be(float.NaN);
 
     public static TheoryData<Serializer, string, object?, Type> GetData()
         => new()

@@ -38,7 +38,7 @@ public sealed class MqttDataPortIncoming : IExternalIncomingCommunication<MqttDa
         var envelopeChildren = EnvelopeChildren.Create(communication.Nodes, properties.ProtocolVersion == MqttProtocolVersion.V500);
         var (transferredNodeJsonNodes, addressNodes) = InitializeUnspecificTree.InitializeIncoming(communication.Nodes, GenerateTopic);
         _subscriptions = addressNodes.ToDictionary(a => a.Key, a => a.Value.ResolveQualityOfService(properties.QualityOfService));
-        _messageHandler = new(transferredNodeJsonNodes, addressNodes, timeProvider, JsonSetup.CreatePreserveTypeOptions(loadContext), loadContext, properties.DefaultSerializer, envelopeChildren, logger);
+        _messageHandler = new(transferredNodeJsonNodes, addressNodes, timeProvider, JsonSetup.CreatePayloadOptions(loadContext), loadContext, properties.DefaultSerializer, envelopeChildren, logger);
     }
 
     private Task HandleIncomingValueAsync(MQTTnet.MqttApplicationMessageReceivedEventArgs eventArgs)

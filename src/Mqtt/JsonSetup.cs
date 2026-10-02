@@ -7,9 +7,9 @@ namespace ViciOne.Suite.DataPort;
 
 internal static class JsonSetup
 {
-    internal static JsonSerializerOptions PreserveTypeOptions { get; } = CreatePreserveTypeOptions();
+    internal static JsonSerializerOptions PayloadOptions { get; } = CreatePayloadOptions();
 
-    internal static JsonSerializerOptions CreatePreserveTypeOptions(AssemblyLoadContext? assemblyLoadContext = default)
+    internal static JsonSerializerOptions CreatePayloadOptions(AssemblyLoadContext? assemblyLoadContext = default)
         => new()
         {
             Converters =
@@ -17,8 +17,8 @@ internal static class JsonSetup
                 new JsonStringEnumConverter(),
                 new TypeJsonConverter(assemblyLoadContext),
                 new TypeNameHandlingConfig(assemblyLoadContext),
-                new FiniteFloatJsonConverter<double>(),
-                new FiniteFloatJsonConverter<float>(),
+                new RangeCheckedFloatJsonConverter<double>(),
+                new RangeCheckedFloatJsonConverter<float>(),
                 new UtcDateTimeJsonConverter(),
             },
             // A payload is read by broker tools and subscribers, not embedded in HTML, so text is
