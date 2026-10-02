@@ -8,7 +8,7 @@ namespace ViciOne.Suite.DataPort;
 /// MQTT user property. Every conversion is culture invariant, so a message means the same on the
 /// broker regardless of where it was produced.
 /// </summary>
-internal static class MqttEnvelopeCodec
+internal static class MqttTextCodec
 {
     private const string TrueText = "true";
     private const string FalseText = "false";

@@ -368,7 +368,7 @@ public class MqttDataPortOutgoing_SendAsync
     }
 
     /// <summary>
-    /// <see cref="MqttEnvelopeCodec.Format"/> writes a missing value as an empty text, and that is
+    /// <see cref="MqttTextCodec.Format"/> writes a missing value as an empty text, and that is
     /// what a child written as null puts on the wire. The key still travels: the tree declares it,
     /// and null is a value the engine wrote rather than metadata about one.
     /// </summary>
