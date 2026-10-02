@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using System.Text.Json;
 using AwesomeAssertions;
 using Xunit;
 
@@ -25,6 +26,43 @@ public class SerializerExtensions_Serialize
 
         act.Should().Throw<NotSupportedException>().WithMessage("*Inherited*not*supported*");
     }
+
+    [Fact]
+    public void Writes_a_json_string_with_the_characters_it_holds()
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize("äöü € <a> & 'b'", typeof(string), JsonSetup.PreserveTypeOptions))
+            .Should().Be("\"äöü € <a> & 'b'\"");
+
+    [Fact]
+    public void Escapes_what_a_json_string_cannot_hold()
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize("\"\\\n", typeof(string), JsonSetup.PreserveTypeOptions))
+            .Should().Be("""
+                "\"\\\n"
+                """);
+
+    [Theory]
+    [InlineData(DateTimeKind.Utc)]
+    [InlineData(DateTimeKind.Unspecified)]
+    public void Writes_a_json_date_in_utc(DateTimeKind kind)
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize(new DateTime(2026, 10, 2, 6, 0, 0, 500, kind), typeof(DateTime), JsonSetup.PreserveTypeOptions))
+            .Should().Be("\"2026-10-02T06:00:00.5000000Z\"");
+
+    [Fact]
+    public void Writes_a_local_json_date_as_the_same_instant_in_utc()
+    {
+        var local = new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc).ToLocalTime();
+
+        var result = Serializer.Json.Serialize(local, typeof(DateTime), JsonSetup.PreserveTypeOptions);
+
+        Encoding.UTF8.GetString(result).Should().Be("\"2026-10-02T06:00:00.0000000Z\"");
+    }
+
+    [Theory]
+    [InlineData(double.NaN, "\"NaN\"")]
+    [InlineData(double.PositiveInfinity, "\"Infinity\"")]
+    [InlineData(double.NegativeInfinity, "\"-Infinity\"")]
+    [InlineData(double.MaxValue, "1.7976931348623157E+308")]
+    public void Writes_a_json_float_that_is_not_a_finite_number_as_its_name(double value, string expected)
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize(value, typeof(double), JsonSetup.PreserveTypeOptions)).Should().Be(expected);
 
     public static TheoryData<Serializer, object?, string?, Type> GetData()
         => new()
@@ -92,6 +130,63 @@ public class SerializerExtensions_Deserialize
 
         act.Should().Throw<FormatException>();
     }
+
+    [Theory]
+    [InlineData("\"2026-10-02T08:00:00+02:00\"")]
+    [InlineData("\"2026-10-02T06:00:00Z\"")]
+    [InlineData("\"2026-10-02T06:00:00\"")]
+    [InlineData("\"2026-10-02T06:00:00.0000000Z\"")]
+    public void Reads_a_json_date_as_the_same_instant_in_utc(string value)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+
+        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PreserveTypeOptions).Should().BeOfType<DateTime>().Which;
+
+        result.Should().Be(new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc));
+        result.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Fact]
+    public void Reads_a_json_date_without_a_time_of_day_as_midnight_utc()
+    {
+        var data = Encoding.UTF8.GetBytes("\"2026-10-02\"");
+
+        var result = Serializer.Json.Deserialize(data, typeof(DateTime), JsonSetup.PreserveTypeOptions);
+
+        result.Should().Be(new DateTime(2026, 10, 2, 0, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Theory]
+    [InlineData("1e39", typeof(float))]
+    [InlineData("1e309", typeof(double))]
+    [InlineData("-1e309", typeof(double))]
+    [InlineData("\"1.5\"", typeof(double))]
+    public void Rejects_a_json_float_its_type_does_not_hold(string value, Type type)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+
+        var act = () => Serializer.Json.Deserialize(data, type, JsonSetup.PreserveTypeOptions);
+
+        act.Should().Throw<JsonException>();
+    }
+
+    [Theory]
+    [InlineData("\"NaN\"", double.NaN)]
+    [InlineData("\"Infinity\"", double.PositiveInfinity)]
+    [InlineData("\"-Infinity\"", double.NegativeInfinity)]
+    [InlineData("3.4028234663852886E+38", 3.4028234663852886E+38)]
+    public void Reads_a_json_float_by_its_name(string value, double expected)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+
+        var result = Serializer.Json.Deserialize(data, typeof(double), JsonSetup.PreserveTypeOptions);
+
+        result.Should().Be(expected);
+    }
+
+    [Fact]
+    public void Reads_a_single_precision_json_float_by_its_name()
+        => Serializer.Json.Deserialize("\"NaN\""u8.ToArray(), typeof(float), JsonSetup.PreserveTypeOptions).Should().Be(float.NaN);
 
     public static TheoryData<Serializer, string, object?, Type> GetData()
         => new()
