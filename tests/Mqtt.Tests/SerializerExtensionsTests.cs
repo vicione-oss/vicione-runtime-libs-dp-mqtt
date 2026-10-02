@@ -33,6 +33,9 @@ public class SerializerExtensions_Serialize
             { Serializer.PlainText, 23, "23", typeof(int) },
             { Serializer.PlainText, 23.2, "23.2", typeof(double) },
             { Serializer.PlainText, null, string.Empty, typeof(string) },
+            { Serializer.PlainText, true, "true", typeof(bool) },
+            { Serializer.PlainText, new DateTime(2026, 10, 2, 6, 0, 0, 500, DateTimeKind.Utc), "2026-10-02T06:00:00.5000000Z", typeof(DateTime) },
+            { Serializer.PlainText, new DateTime(2026, 10, 2, 0, 0, 0, DateTimeKind.Utc), "2026-10-02T00:00:00.0000000Z", typeof(DateTime) },
             { Serializer.Json, "Test", "\"Test\"", typeof(string) },
             { Serializer.Json, 23, "23", typeof(int) },
             { Serializer.Json, 23.2, "23.2", typeof(double) },
@@ -63,6 +66,33 @@ public class SerializerExtensions_Deserialize
         act.Should().Throw<NotSupportedException>().WithMessage("*Inherited*not*supported*");
     }
 
+    [Fact]
+    public void Reads_a_plain_text_date_as_the_same_instant_in_utc()
+    {
+        var data = Encoding.UTF8.GetBytes("2026-10-02T08:00:00.5+02:00");
+
+        var result = Serializer.PlainText.Deserialize(data, typeof(DateTime), new()).Should().BeOfType<DateTime>().Which;
+
+        result.Should().Be(new DateTime(2026, 10, 2, 6, 0, 0, 500, DateTimeKind.Utc));
+        result.Kind.Should().Be(DateTimeKind.Utc);
+    }
+
+    [Theory]
+    [InlineData("0x2C", typeof(int))]
+    [InlineData("#2C", typeof(int))]
+    [InlineData("1e39", typeof(float))]
+    [InlineData("1e309", typeof(double))]
+    [InlineData("10/02/2026 08:00:00", typeof(DateTime))]
+    [InlineData("yes", typeof(bool))]
+    public void Rejects_a_plain_text_payload_its_type_does_not_read(string value, Type type)
+    {
+        var data = Encoding.UTF8.GetBytes(value);
+
+        var act = () => Serializer.PlainText.Deserialize(data, type, new());
+
+        act.Should().Throw<FormatException>();
+    }
+
     public static TheoryData<Serializer, string, object?, Type> GetData()
         => new()
         {
@@ -70,6 +100,8 @@ public class SerializerExtensions_Deserialize
             { Serializer.PlainText, "23", 23, typeof(int) },
             { Serializer.PlainText, "23.2", 23.2, typeof(double) },
             { Serializer.PlainText, string.Empty, null, typeof(string) },
+            { Serializer.PlainText, "true", true, typeof(bool) },
+            { Serializer.PlainText, " 44 ", 44, typeof(int) },
             { Serializer.Json, "\"Test\"", "Test", typeof(string) },
             { Serializer.Json, "23", 23, typeof(int) },
             { Serializer.Json, "23.2", 23.2, typeof(double) },

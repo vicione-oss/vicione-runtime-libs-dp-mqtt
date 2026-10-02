@@ -40,6 +40,10 @@ public class MqttTextCodec_Format
         => MqttTextCodec.Format(value).Should().Be(expected);
 
     [Fact]
+    public void Writes_a_single_precision_float_without_the_digits_of_a_double()
+        => MqttTextCodec.Format(0.1f).Should().Be("0.1");
+
+    [Fact]
     public void Writes_a_date_in_utc()
         => MqttTextCodec.Format(new DateTime(2026, 3, 4, 5, 6, 7, DateTimeKind.Utc)).Should().Be("2026-03-04T05:06:07.0000000Z");
 
@@ -88,6 +92,53 @@ public class MqttTextCodec_Parse
     [InlineData("1.7976931348623157E+308", double.MaxValue)]
     [InlineData("5E-324", double.Epsilon)]
     public void Reads_a_float(string text, double expected)
+        => MqttTextCodec.Parse(text, typeof(double)).Should().Be(expected);
+
+    [Theory]
+    [MemberData(nameof(GetIntegersAtTheEdgesOfTheirRange))]
+    public void Reads_an_integer_of_every_width(string text, object expected)
+        => MqttTextCodec.Parse(text, expected.GetType()).Should().Be(expected);
+
+    public static TheoryData<string, object> GetIntegersAtTheEdgesOfTheirRange()
+        => new()
+        {
+            { "-128", sbyte.MinValue },
+            { "255", byte.MaxValue },
+            { "-32768", short.MinValue },
+            { "65535", ushort.MaxValue },
+            { "-2147483648", int.MinValue },
+            { "4294967295", uint.MaxValue },
+            { "18446744073709551615", ulong.MaxValue },
+        };
+
+    [Theory]
+    [InlineData("0x2C")]
+    [InlineData("#2C")]
+    [InlineData("2C")]
+    public void Returns_nothing_for_an_integer_in_hex(string text)
+        => MqttTextCodec.Parse(text, typeof(int)).Should().BeNull();
+
+    [Fact]
+    public void Returns_nothing_for_an_integer_beyond_the_range_of_its_width()
+        => MqttTextCodec.Parse("128", typeof(sbyte)).Should().BeNull();
+
+    [Fact]
+    public void Reads_a_single_precision_float()
+        => MqttTextCodec.Parse("0.1", typeof(float)).Should().Be(0.1f);
+
+    [Theory]
+    [InlineData("1e39", typeof(float))]
+    [InlineData("-1e39", typeof(float))]
+    [InlineData("1e309", typeof(double))]
+    [InlineData("-1e309", typeof(double))]
+    public void Returns_nothing_for_a_float_beyond_the_range_of_its_type(string text, Type type)
+        => MqttTextCodec.Parse(text, type).Should().BeNull();
+
+    [Theory]
+    [InlineData("NaN", double.NaN)]
+    [InlineData("Infinity", double.PositiveInfinity)]
+    [InlineData("-Infinity", double.NegativeInfinity)]
+    public void Reads_a_float_that_is_not_a_finite_number(string text, double expected)
         => MqttTextCodec.Parse(text, typeof(double)).Should().Be(expected);
 
     [Fact]
@@ -147,7 +198,7 @@ public class MqttTextCodec_Parse
         => MqttTextCodec.Parse("not a number", typeof(long)).Should().BeNull();
 
     [Fact]
-    public void Returns_nothing_for_a_type_no_envelope_child_declares()
+    public void Returns_nothing_for_a_type_without_a_text_form()
         => MqttTextCodec.Parse("1", typeof(Guid)).Should().BeNull();
 }
 
