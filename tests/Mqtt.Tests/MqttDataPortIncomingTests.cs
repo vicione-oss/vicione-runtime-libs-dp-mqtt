@@ -1555,7 +1555,24 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             e.Level == LogLevel.Warning && e.Message.Contains("group"));
     }
 
-    private static MqttDataPortCommunication CreateTreeOf(Type valueType)
+    [Theory]
+    [InlineData("0x2C")]
+    [InlineData("#2C")]
+    public async Task Forwards_no_value_if_a_plain_text_integer_is_not_decimal_Async(string payload)
+    {
+        FakeLogger<MqttDataPortIncoming> logger = new();
+
+        var messages = await ReceiveAsync(CreateTreeOf(typeof(int), Serializer.PlainText), logger, new MqttApplicationMessageBuilder()
+            .WithTopic("value")
+            .WithPayload(payload)
+            .Build());
+
+        messages.Should().BeEmpty();
+        logger.Collector.GetSnapshot().Should().ContainSingle(e =>
+            e.Level == LogLevel.Warning && e.Message.Contains("value"));
+    }
+
+    private static MqttDataPortCommunication CreateTreeOf(Type valueType, Serializer serializer = Serializer.Inherited)
     {
         Node valueNode = new()
         {
@@ -1565,6 +1582,10 @@ public class MqttDataPortIncoming_HandleIncomingValueAsync
             TransferredChannels = { "v", },
             DesignId = MqttNodeDesignId.Topic,
             ValueType = valueType,
+            Properties = new()
+            {
+                { MqttNodeProperties.Serializer, new() { Value = (byte)serializer, } },
+            },
         };
 
         return new()

@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Buffers;
-using System.ComponentModel;
-using System.Globalization;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
@@ -15,7 +13,7 @@ internal static class SerializerExtensions
         => serializer switch
         {
             Serializer.Json => JsonSerializer.SerializeToUtf8Bytes(value, type, options),
-            Serializer.PlainText => Encoding.UTF8.GetBytes(value is not null ? TypeDescriptor.GetConverter(type).ConvertToString(null, CultureInfo.InvariantCulture, value) ?? string.Empty : string.Empty),
+            Serializer.PlainText => Encoding.UTF8.GetBytes(MqttTextCodec.Format(value)),
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
 
@@ -27,7 +25,7 @@ internal static class SerializerExtensions
         return serializer switch
         {
             Serializer.Json => JsonNode.Parse(data).Deserialize(type, options),
-            Serializer.PlainText => TypeDescriptor.GetConverter(type).ConvertFromInvariantString(Encoding.UTF8.GetString(data)),
+            Serializer.PlainText => ParsePlainText(Encoding.UTF8.GetString(data), type),
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
     }
@@ -40,10 +38,13 @@ internal static class SerializerExtensions
         return serializer switch
         {
             Serializer.Json => MqttPayloadHelper.ParseJsonNode(data)?.Deserialize(type, options),
-            Serializer.PlainText => TypeDescriptor.GetConverter(type).ConvertFromInvariantString(Encoding.UTF8.GetString(data)),
+            Serializer.PlainText => ParsePlainText(Encoding.UTF8.GetString(data), type),
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
     }
+
+    private static object ParsePlainText(string text, Type type)
+        => MqttTextCodec.Parse(text, type) ?? throw new FormatException($"The payload is not a {type.Name} in plain text.");
 
     internal static string ToContentType(this Serializer serializer)
         => serializer switch

@@ -45,6 +45,12 @@
   declares them as envelope children; a group message still carries all three
 - **Breaking:** Read a received payload or group member as its configured data type, or as a
   subtype the sender names in `Type`, so a publisher can no longer decide which type the port loads
+- **Breaking:** Write a plain text payload culture invariant, like a user property: a date in ISO
+  8601 UTC with its fraction instead of `MM/dd/yyyy HH:mm:ss` in the host's time zone, and a bool as
+  `true` or `false`
+- **Breaking:** Read a plain text date in ISO 8601 only, with an offset as the same instant in UTC
+  and without a zone as UTC
+- **Breaking:** Read a plain text integer in decimal only, so `0x2C` and `#2C` are no longer `44`
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 - Clarify the property names and descriptions of the MQTT DataPort
 - Rename the MQTT DataPort property category `Other` to `Messaging`
@@ -58,6 +64,8 @@
 - Reject a JSON payload with more than whitespace after its value, with a warning, instead of
   reading only the first value: `21,5` reached a data point as `21`, and a group message followed
   by text was read as if the text were not there
+- Reject a float too large for its data type in a plain text payload or a user property, with a
+  warning, instead of reading it as infinity: `1e39` for `Float32`, `1e309` for `Float64`
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
 - Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
