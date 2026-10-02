@@ -39,16 +39,10 @@ internal static class SerializerExtensions
 
         return serializer switch
         {
-            Serializer.Json => ParseJsonNode(data)?.Deserialize(type, options),
+            Serializer.Json => MqttPayloadHelper.ParseJsonNode(data)?.Deserialize(type, options),
             Serializer.PlainText => TypeDescriptor.GetConverter(type).ConvertFromInvariantString(Encoding.UTF8.GetString(data)),
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
-
-        static JsonNode? ParseJsonNode(ReadOnlySequence<byte> data)
-        {
-            var reader = new Utf8JsonReader(data);
-            return JsonNode.Parse(ref reader);
-        }
     }
 
     internal static string ToContentType(this Serializer serializer)

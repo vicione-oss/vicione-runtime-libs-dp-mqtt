@@ -55,6 +55,9 @@
 - Skip a message on a topic no data point addresses, with a warning, instead of failing it
 - Forward the other values of a message when a payload or group member cannot be read, instead of
   dropping the whole message
+- Reject a JSON payload with more than whitespace after its value, with a warning, instead of
+  reading only the first value: `21,5` reached a data point as `21`, and a group message followed
+  by text was read as if the text were not there
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
 - Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone
