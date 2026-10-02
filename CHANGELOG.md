@@ -51,6 +51,9 @@
 - **Breaking:** Read a plain text date in ISO 8601 only, with an offset as the same instant in UTC
   and without a zone as UTC
 - **Breaking:** Read a plain text integer in decimal only, so `0x2C` and `#2C` are no longer `44`
+- **Breaking:** Write a JSON date in UTC with seven fractional digits, like the `Timestamp` user
+  property, and read one with an offset as the same instant in UTC and one without a zone as UTC,
+  instead of keeping the zone of the sender or moving it into the zone of the host
 - Require `ViciOne.Tree.Builder` `3.0.0` and cluster management `2.4.0`
 - Clarify the property names and descriptions of the MQTT DataPort
 - Rename the MQTT DataPort property category `Other` to `Messaging`
@@ -64,8 +67,11 @@
 - Reject a JSON payload with more than whitespace after its value, with a warning, instead of
   reading only the first value: `21,5` reached a data point as `21`, and a group message followed
   by text was read as if the text were not there
-- Reject a float too large for its data type in a plain text payload or a user property, with a
-  warning, instead of reading it as infinity: `1e39` for `Float32`, `1e309` for `Float64`
+- Reject a float too large for its data type in a payload or a user property, with a warning,
+  instead of reading it as infinity: `1e39` for `Float32`, `1e309` for `Float64`
+- Write non-ASCII characters and `<`, `>`, `&`, `'` in a JSON string as they are instead of as
+  `\uXXXX` escapes, which broker tools showed unreadable
+- Publish a group message with a member that is not a number, which failed to be written
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
 - Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone

@@ -156,14 +156,14 @@ internal sealed class MqttTreeHandlerOutgoing
         protected override MqttApplicationMessageBuilder HandleGroupNode(INode node, JsonObject data, JsonObject meta, IReadOnlyCollection<ExternalValue> values)
         {
             var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(data);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(data, JsonSetup.PreserveTypeOptions);
             var builder = CreateDefaultBuilder(node, serializer, payload);
             // A folder cannot declare envelope children, so its message keeps the envelope 1.0.0 sent.
             if (supportsExtendedProtocol)
             {
                 AddProperty(builder, MqttUserProperties.Timestamp, MqttTextCodec.FormatTimestamp(values.Max(v => v.Timestamp)));
                 AddProperty(builder, MqttUserProperties.Validity, MqttTextCodec.FormatValidity(values.Min(v => v.Validity)));
-                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta));
+                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta, JsonSetup.PreserveTypeOptions));
             }
             return builder;
         }
