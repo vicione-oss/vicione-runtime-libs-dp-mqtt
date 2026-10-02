@@ -17,6 +17,26 @@ Node properties apply to data points. A folder that is itself configured with a 
 publishes its children as one grouped message, and that message uses the broker-level settings -
 a folder carries no node properties of its own.
 
+## Payload formats
+
+A payload means the same on the broker wherever it was written: every conversion is culture
+invariant and independent of the time zone of the host.
+
+| Data type       | JSON                                          | PlainText                                   |
+|-----------------|-----------------------------------------------|---------------------------------------------|
+| `String`        | a JSON string; only `"`, `\` and control characters are escaped | the text as it is          |
+| `Bool`          | `true` / `false`                              | `true` / `false`, read in any case          |
+| Integers        | a JSON number                                 | decimal, with an optional sign; no hex      |
+| `Float32`/`Float64` | a JSON number; `"NaN"`, `"Infinity"`, `"-Infinity"` as strings | the number, or `NaN`, `Infinity`, `-Infinity` |
+| `DateTime`      | an ISO 8601 string                            | ISO 8601                                    |
+
+A float is written with every digit it takes to read it back, and a number too large for its data
+type is not read as infinity but reported as unreadable. A `DateTime` is written in UTC with seven
+fractional digits, `2026-10-02T06:00:00.0000000Z`, like the `Timestamp` user property. It is read
+with or without a fraction, with an offset as the same instant in UTC, and without a zone as UTC;
+JSON also reads a date alone as midnight UTC. A group message is always JSON and writes its members
+the same way.
+
 ## Envelope children
 
 A data point may carry child data points that address the envelope of its parent's message instead
@@ -41,7 +61,8 @@ everything but `0` means valid. Incoming, the validity is read the same way, and
 a publisher that is not this port sent is understood as well. A text that is neither is reported,
 and the values of the message are forwarded as invalid.
 
-A user property key may not be `Timestamp`, `Validity` or `Type`, and this data port
+A user property key may not be `Timestamp`, `Validity` or `Type` in any case, which the editor
+checks already, and this data port
 puts at most 16 of them on a message. A `DateTime` the engine wrote without a kind is sent as UTC,
 the way a received one without a zone is read.
 
