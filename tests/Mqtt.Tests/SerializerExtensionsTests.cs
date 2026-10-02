@@ -32,6 +32,17 @@ public class SerializerExtensions_Serialize
         => Encoding.UTF8.GetString(Serializer.Json.Serialize("äöü € <a> & 'b'", typeof(string), JsonSetup.PayloadOptions))
             .Should().Be("\"äöü € <a> & 'b'\"");
 
+    /// <summary>
+    /// The encoder writes only the basic multilingual plane as it is. A character beyond it, such
+    /// as an emoji, stays escaped as its surrogate pair.
+    /// </summary>
+    [Fact]
+    public void Escapes_a_character_beyond_the_basic_multilingual_plane()
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize("😀", typeof(string), JsonSetup.PayloadOptions))
+            .Should().Be("""
+                "\uD83D\uDE00"
+                """);
+
     [Fact]
     public void Escapes_what_a_json_string_cannot_hold()
         => Encoding.UTF8.GetString(Serializer.Json.Serialize("\"\\\n", typeof(string), JsonSetup.PayloadOptions))
@@ -60,9 +71,13 @@ public class SerializerExtensions_Serialize
     [InlineData(double.NaN, "\"NaN\"")]
     [InlineData(double.PositiveInfinity, "\"Infinity\"")]
     [InlineData(double.NegativeInfinity, "\"-Infinity\"")]
-    [InlineData(double.MaxValue, "1.7976931348623157E+308")]
     public void Writes_a_json_float_that_is_not_a_finite_number_as_its_name(double value, string expected)
         => Encoding.UTF8.GetString(Serializer.Json.Serialize(value, typeof(double), JsonSetup.PayloadOptions)).Should().Be(expected);
+
+    [Fact]
+    public void Writes_a_json_float_at_the_edge_of_its_range_as_a_number()
+        => Encoding.UTF8.GetString(Serializer.Json.Serialize(double.MaxValue, typeof(double), JsonSetup.PayloadOptions))
+            .Should().Be("1.7976931348623157E+308");
 
     public static TheoryData<Serializer, object?, string?, Type> GetData()
         => new()
@@ -161,6 +176,9 @@ public class SerializerExtensions_Deserialize
     [InlineData("1e309", typeof(double))]
     [InlineData("-1e309", typeof(double))]
     [InlineData("\"1.5\"", typeof(double))]
+    [InlineData("\"nan\"", typeof(double))]
+    [InlineData("\" Infinity\"", typeof(double))]
+    [InlineData("\"+Infinity\"", typeof(float))]
     public void Rejects_a_json_float_its_type_does_not_hold(string value, Type type)
     {
         var data = Encoding.UTF8.GetBytes(value);
@@ -174,7 +192,6 @@ public class SerializerExtensions_Deserialize
     [InlineData("\"NaN\"", double.NaN)]
     [InlineData("\"Infinity\"", double.PositiveInfinity)]
     [InlineData("\"-Infinity\"", double.NegativeInfinity)]
-    [InlineData("3.4028234663852886E+38", 3.4028234663852886E+38)]
     public void Reads_a_json_float_by_its_name(string value, double expected)
     {
         var data = Encoding.UTF8.GetBytes(value);
@@ -183,6 +200,10 @@ public class SerializerExtensions_Deserialize
 
         result.Should().Be(expected);
     }
+
+    [Fact]
+    public void Reads_a_json_float_at_the_edge_of_single_precision()
+        => Serializer.Json.Deserialize("3.4028235E+38"u8.ToArray(), typeof(float), JsonSetup.PayloadOptions).Should().Be(float.MaxValue);
 
     [Fact]
     public void Reads_a_single_precision_json_float_by_its_name()
@@ -197,6 +218,7 @@ public class SerializerExtensions_Deserialize
             { Serializer.PlainText, string.Empty, null, typeof(string) },
             { Serializer.PlainText, "true", true, typeof(bool) },
             { Serializer.PlainText, " 44 ", 44, typeof(int) },
+            { Serializer.PlainText, "2026-10-02T06:00:00Z\n", new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Utc), typeof(DateTime) },
             { Serializer.Json, "\"Test\"", "Test", typeof(string) },
             { Serializer.Json, "23", 23, typeof(int) },
             { Serializer.Json, "23.2", 23.2, typeof(double) },

@@ -69,8 +69,9 @@
   by text was read as if the text were not there
 - Reject a float too large for its data type in a payload or a user property, with a warning,
   instead of reading it as infinity: `1e39` for `Float32`, `1e309` for `Float64`
-- Write non-ASCII characters and `<`, `>`, `&`, `'` in a JSON string as they are instead of as
-  `\uXXXX` escapes, which broker tools showed unreadable
+- Write `<`, `>`, `&`, `'` and non-ASCII letters and symbols, such as `äöü €`, in a JSON string as
+  they are instead of as `\uXXXX` escapes, which broker tools showed
+  unreadable
 - Publish a group message with a member that is not a number, which failed to be written
 - Refuse the reserved keys `Timestamp`, `Validity` and `Type` for a user property in the editor,
   not only when the data port starts

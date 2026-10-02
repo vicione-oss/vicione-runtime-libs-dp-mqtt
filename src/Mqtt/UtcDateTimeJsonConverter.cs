@@ -5,8 +5,10 @@ using System.Text.Json.Serialization;
 namespace ViciOne.Suite.DataPort;
 
 /// <summary>
-/// Reads and writes a date as UTC, like the <c>Timestamp</c> user property, so neither the zone
-/// a sender chose nor the zone of the host shows in what this port forwards or publishes.
+/// Writes a date as UTC, in the text of the <c>Timestamp</c> user property, and reads one as UTC,
+/// so neither the zone a sender chose nor the zone of the host shows in what this port forwards or
+/// publishes. It reads every ISO 8601 date the framework reads, which unlike
+/// <see cref="MqttTextCodec"/> includes a date without a time of day, as midnight.
 /// </summary>
 internal sealed class UtcDateTimeJsonConverter : JsonConverter<DateTime>
 {

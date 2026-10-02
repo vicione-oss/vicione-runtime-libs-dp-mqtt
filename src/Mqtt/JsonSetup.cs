@@ -21,8 +21,9 @@ internal static class JsonSetup
                 new RangeCheckedFloatJsonConverter<float>(),
                 new UtcDateTimeJsonConverter(),
             },
-            // A payload is read by broker tools and subscribers, not embedded in HTML, so text is
-            // written as it is and only what JSON itself cannot hold is escaped.
+            // A payload is read by broker tools and subscribers, not embedded in HTML, so the
+            // characters HTML needs escaped are written as they are, and so are letters and symbols
+            // beyond ASCII.
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
 }

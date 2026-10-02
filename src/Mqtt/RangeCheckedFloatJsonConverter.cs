@@ -9,7 +9,7 @@ namespace ViciOne.Suite.DataPort;
 /// <summary>
 /// Reads and writes a float the way <see cref="MqttTextCodec"/> does. A number too large for its
 /// type is refused instead of read as infinity. <c>NaN</c>, <c>Infinity</c> and <c>-Infinity</c>
-/// have no JSON number, so they travel as a string holding their name.
+/// have no JSON number, so they travel as a string holding exactly that name.
 /// </summary>
 internal sealed class RangeCheckedFloatJsonConverter<T> : JsonConverter<T>
     where T : struct, IFloatingPointIeee754<T>
@@ -19,7 +19,7 @@ internal sealed class RangeCheckedFloatJsonConverter<T> : JsonConverter<T>
         var number = reader.TokenType switch
         {
             JsonTokenType.Number => MqttTextCodec.Parse(ReadNumberText(ref reader), typeof(T)),
-            JsonTokenType.String => MqttTextCodec.Parse(reader.GetString()!, typeof(T)) is T named && !T.IsFinite(named) ? named : null,
+            JsonTokenType.String => ReadName(reader.GetString()),
             _ => null,
         };
 
@@ -35,6 +35,15 @@ internal sealed class RangeCheckedFloatJsonConverter<T> : JsonConverter<T>
         else
             writer.WriteStringValue(text);
     }
+
+    private static object? ReadName(string? name)
+        => name switch
+        {
+            "NaN" => T.NaN,
+            "Infinity" => T.PositiveInfinity,
+            "-Infinity" => T.NegativeInfinity,
+            _ => null,
+        };
 
     private static string ReadNumberText(ref Utf8JsonReader reader)
         => reader.HasValueSequence ? Encoding.UTF8.GetString(reader.ValueSequence) : Encoding.UTF8.GetString(reader.ValueSpan);

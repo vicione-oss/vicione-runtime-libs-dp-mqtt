@@ -176,6 +176,7 @@ public class MqttTextCodec_Parse
     [InlineData("2026-03-04T05:06:07.000Z")]
     [InlineData("2026-03-04T07:06:07+02:00")]
     [InlineData("2026-03-04T00:06:07-05:00")]
+    [InlineData(" 2026-03-04T05:06:07Z\r\n")]
     public void Reads_a_date_written_as_plain_iso_8601(string text)
     {
         var timestamp = MqttTextCodec.Parse(text, typeof(DateTime)).Should().BeOfType<DateTime>().Which;
@@ -189,6 +190,9 @@ public class MqttTextCodec_Parse
     [InlineData("2026-03-04 05:06:07Z")]
     [InlineData("04/03/2026 05:06:07")]
     [InlineData("2026-03-04T05:06:07.12345678Z")]
+    [InlineData("2026 -03-04T05:06:07Z")]
+    [InlineData("2026-03-04T05: 06:07Z")]
+    [InlineData("2026-03-04T05:06:07 Z")]
     [InlineData("the day before")]
     public void Returns_nothing_for_a_text_that_is_not_a_point_in_time(string text)
         => MqttTextCodec.Parse(text, typeof(DateTime)).Should().BeNull();

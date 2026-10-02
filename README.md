@@ -24,7 +24,7 @@ invariant and independent of the time zone of the host.
 
 | Data type       | JSON                                          | PlainText                                   |
 |-----------------|-----------------------------------------------|---------------------------------------------|
-| `String`        | a JSON string; only `"`, `\` and control characters are escaped | the text as it is          |
+| `String`        | a JSON string; letters, symbols and `<>&'` as they are, while `"`, `\`, control and invisible characters and emoji are escaped | the text as it is |
 | `Bool`          | `true` / `false`                              | `true` / `false`, read in any case          |
 | Integers        | a JSON number                                 | decimal, with an optional sign; no hex      |
 | `Float32`/`Float64` | a JSON number; `"NaN"`, `"Infinity"`, `"-Infinity"` as strings | the number, or `NaN`, `Infinity`, `-Infinity` |

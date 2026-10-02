@@ -51,7 +51,7 @@ internal static class MqttTextCodec
         // A sender that leaves the zone off means the UTC this port writes, not the local time of
         // whichever host happens to read the message.
         if (type == typeof(DateTime))
-            return DateTime.TryParseExact(text, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
+            return DateTime.TryParseExact(text, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AllowLeadingWhite | DateTimeStyles.AllowTrailingWhite | DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
 
         return Type.GetTypeCode(type) switch
         {
