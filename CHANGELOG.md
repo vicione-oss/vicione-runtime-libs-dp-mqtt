@@ -72,6 +72,8 @@
 - Write non-ASCII characters and `<`, `>`, `&`, `'` in a JSON string as they are instead of as
   `\uXXXX` escapes, which broker tools showed unreadable
 - Publish a group message with a member that is not a number, which failed to be written
+- Refuse the reserved keys `Timestamp`, `Validity` and `Type` for a user property in the editor,
+  not only when the data port starts
 - Read an unreadable `Timestamp` as the receive time, with a warning, instead of failing the message
 - Read an unreadable `Validity` as invalid, with a warning, instead of failing the message
 - Read a received `Timestamp` in plain ISO 8601, with or without fraction and time zone

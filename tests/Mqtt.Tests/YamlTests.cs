@@ -191,6 +191,20 @@ public class YamlTests
     public void Rejects_an_unprintable_user_property_key(string name)
         => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeFalse();
 
+    [Theory]
+    [InlineData("Timestamp")]
+    [InlineData("validity")]
+    [InlineData("TYPE")]
+    public void Rejects_a_reserved_user_property_key(string name)
+        => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeFalse();
+
+    [Theory]
+    [InlineData("Types")]
+    [InlineData("Timestamp of batch")]
+    [InlineData("my Validity")]
+    public void Accepts_a_user_property_key_that_only_contains_a_reserved_one(string name)
+        => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeTrue();
+
     private static bool ValidateNodeName(string nodeTypeId, string name)
     {
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");
