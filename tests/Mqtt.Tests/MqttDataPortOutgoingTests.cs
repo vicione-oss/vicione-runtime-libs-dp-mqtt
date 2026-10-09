@@ -368,7 +368,7 @@ public class MqttDataPortOutgoing_SendAsync
     }
 
     /// <summary>
-    /// <see cref="MqttEnvelopeCodec.Format"/> writes a missing value as an empty text, and that is
+    /// <see cref="MqttTextCodec.Format"/> writes a missing value as an empty text, and that is
     /// what a child written as null puts on the wire. The key still travels: the tree declares it,
     /// and null is a value the engine wrote rather than metadata about one.
     /// </summary>
@@ -1054,6 +1054,39 @@ public class MqttDataPortOutgoing_SendAsync
 
         var json = Encoding.UTF8.GetString(messages.Should().ContainSingle().Which.UserProperties.Find(p => p.Name == MqttUserProperties.Type)!.ValueBuffer.Span);
         JsonNode.Parse(json)!["myValue"]!.GetValue<string>().Should().Be(typeof(JsonObject).AssemblyQualifiedName!);
+    }
+
+    [Fact]
+    public async Task Writes_a_group_member_as_a_single_value_is_written_Async()
+    {
+        Node parentNode = new()
+        {
+            Id = Guid.NewGuid(),
+            Name = "group",
+            DesignId = MqttNodeDesignId.Topic,
+            TransferredChannels = { "a", "b", "c", },
+        };
+        var communication = CreateCommunication(
+        [
+            parentNode,
+            new() { Id = Guid.NewGuid(), ParentId = parentNode.Id, Name = "text", DesignId = MqttNodeDesignId.Topic, AffectedChannels = { "a", }, },
+            new() { Id = Guid.NewGuid(), ParentId = parentNode.Id, Name = "ratio", DesignId = MqttNodeDesignId.Topic, AffectedChannels = { "b", }, },
+            new() { Id = Guid.NewGuid(), ParentId = parentNode.Id, Name = "at", DesignId = MqttNodeDesignId.Topic, AffectedChannels = { "c", }, },
+        ]);
+        communication.Host = "local";
+        List<MqttApplicationMessage> messages = [];
+        using var client = CreateRecordingClient(messages);
+        using MqttDataPortOutgoing outgoing = new(communication, client, Substitute.For<ILogger<MqttDataPortOutgoing>>());
+
+        await outgoing.SendAsync(0,
+        [
+            Value("a", "äöü <€> & 'x'"),
+            Value("b", double.NaN),
+            Value("c", new DateTime(2026, 10, 2, 6, 0, 0, DateTimeKind.Unspecified)),
+        ], TestContext.Current.CancellationToken);
+
+        messages.Should().ContainSingle().Which.ConvertPayloadToString()
+            .Should().Be("{\"text\":\"äöü <€> & 'x'\",\"ratio\":\"NaN\",\"at\":\"2026-10-02T06:00:00.0000000Z\"}");
     }
 
     internal static MqttDataPortCommunication CreateTreeWithOneChild()

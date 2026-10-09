@@ -191,6 +191,31 @@ public class YamlTests
     public void Rejects_an_unprintable_user_property_key(string name)
         => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeFalse();
 
+    /// <summary>
+    /// The editor holds its own copy of the keys the data port reserves, so every reserved key is
+    /// checked in every case the port refuses it in.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(GetReservedKeysInEveryCase))]
+    public void Rejects_a_reserved_user_property_key(string name)
+        => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeFalse();
+
+    public static TheoryData<string> GetReservedKeysInEveryCase()
+        => [.. s_reservedKeys.SelectMany(key => new[] { key, key.ToUpperInvariant(), SwapCase(key), }),];
+
+    [Theory]
+    [MemberData(nameof(GetKeysThatOnlyContainAReservedKey))]
+    public void Accepts_a_user_property_key_that_only_contains_a_reserved_one(string name)
+        => ValidateNodeName(MqttNodeDesignId.UserProperty, name).Should().BeTrue();
+
+    public static TheoryData<string> GetKeysThatOnlyContainAReservedKey()
+        => [.. s_reservedKeys.SelectMany(key => new[] { key + "s", "my " + key, key[..^1], }),];
+
+    private static string SwapCase(string text)
+        => string.Concat(text.Select(c => char.IsUpper(c) ? char.ToLowerInvariant(c) : char.ToUpperInvariant(c)));
+
+    private static readonly string[] s_reservedKeys = [MqttUserProperties.Timestamp, MqttUserProperties.Validity, MqttUserProperties.Type,];
+
     private static bool ValidateNodeName(string nodeTypeId, string name)
     {
         var metadata = RulesDeserializer.Deserialize("Mqtt.yaml");

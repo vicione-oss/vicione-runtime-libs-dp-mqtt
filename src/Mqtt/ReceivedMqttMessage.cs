@@ -18,7 +18,7 @@ internal sealed class ReceivedMqttMessage
         Message = message;
 
         var property = message.UserProperties?.FindOptional(MqttUserProperties.Timestamp);
-        var sent = property is null ? null : MqttEnvelopeCodec.Parse(property.GetText(), typeof(DateTime)) as DateTime?;
+        var sent = property is null ? null : MqttTextCodec.Parse(property.GetText(), typeof(DateTime)) as DateTime?;
 
         Timestamp = sent ?? timeProvider.GetUtcNow().UtcDateTime;
         UnreadableTimestamp = property is not null && sent is null ? property.GetText() : null;
@@ -34,7 +34,7 @@ internal sealed class ReceivedMqttMessage
 
     /// <summary>
     /// The point in time the message carries, or the time it was received. Always in UTC: the
-    /// outgoing port writes it back with <see cref="MqttEnvelopeCodec.FormatTimestamp"/>, which
+    /// outgoing port writes it back with <see cref="MqttTextCodec.FormatTimestamp"/>, which
     /// reads a timestamp of an unspecified kind as local time and would move it by the offset of
     /// the host.
     /// </summary>

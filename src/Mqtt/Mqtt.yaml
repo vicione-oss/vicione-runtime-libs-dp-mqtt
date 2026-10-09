@@ -285,6 +285,12 @@ Nodes:
       - Type               : Regex
         Pattern            : '^[^\x00-\x1f\x7f]+$'
         Message            : "A user property key may not be empty and may not contain control characters."
+      # Every key but 'Timestamp', 'Validity' and 'Type' in any case. The tree builder matches
+      # without backtracking, which rules out a lookahead, so each branch leaves a reserved key at
+      # the first character that differs from it or runs on past its end.
+      - Type               : Regex
+        Pattern            : '^(|[^tTvV].*|[tT](|[^iIyY].*|[iI](|[^mM].*|[mM](|[^eE].*|[eE](|[^sS].*|[sS](|[^tT].*|[tT](|[^aA].*|[aA](|[^mM].*|[mM](|[^pP].*|[pP].+)))))))|[yY](|[^pP].*|[pP](|[^eE].*|[eE].+)))|[vV](|[^aA].*|[aA](|[^lL].*|[lL](|[^iI].*|[iI](|[^dD].*|[dD](|[^iI].*|[iI](|[^tT].*|[tT](|[^yY].*|[yY].+))))))))$'
+        Message            : "The keys 'Timestamp', 'Validity' and 'Type' are reserved for the envelope children of the same name."
 
   - Id                     : Timestamp
     MappingId              : Timestamp

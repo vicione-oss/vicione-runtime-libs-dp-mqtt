@@ -107,10 +107,10 @@ internal sealed class MqttTreeHandlerOutgoing
                     AddUserProperty(builder, child);
                     break;
                 case EnvelopeChildKind.Timestamp:
-                    AddProperty(builder, child.Key, MqttEnvelopeCodec.FormatTimestamp(value.Timestamp));
+                    AddProperty(builder, child.Key, MqttTextCodec.FormatTimestamp(value.Timestamp));
                     break;
                 case EnvelopeChildKind.Validity:
-                    AddProperty(builder, child.Key, MqttEnvelopeCodec.FormatValidity(value.Validity));
+                    AddProperty(builder, child.Key, MqttTextCodec.FormatValidity(value.Validity));
                     break;
                 case EnvelopeChildKind.Type:
                     AddProperty(builder, child.Key, (value.Value?.GetType() ?? typeof(object)).AssemblyQualifiedName!);
@@ -129,7 +129,7 @@ internal sealed class MqttTreeHandlerOutgoing
         // A user property carries no validity of its own on the wire, so the one the engine
         // wrote is not read back as a rule about whether to publish: the tree decides the keys.
         if (_lastChildValues.TryGetValue(child.Node.Id, out var value))
-            AddProperty(builder, child.Key, MqttEnvelopeCodec.Format(value.Value));
+            AddProperty(builder, child.Key, MqttTextCodec.Format(value.Value));
     }
 
     private sealed class Publisher(
@@ -156,14 +156,14 @@ internal sealed class MqttTreeHandlerOutgoing
         protected override MqttApplicationMessageBuilder HandleGroupNode(INode node, JsonObject data, JsonObject meta, IReadOnlyCollection<ExternalValue> values)
         {
             var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(data);
+            var payload = JsonSerializer.SerializeToUtf8Bytes(data, JsonSetup.PayloadOptions);
             var builder = CreateDefaultBuilder(node, serializer, payload);
             // A folder cannot declare envelope children, so its message keeps the envelope 1.0.0 sent.
             if (supportsExtendedProtocol)
             {
-                AddProperty(builder, MqttUserProperties.Timestamp, MqttEnvelopeCodec.FormatTimestamp(values.Max(v => v.Timestamp)));
-                AddProperty(builder, MqttUserProperties.Validity, MqttEnvelopeCodec.FormatValidity(values.Min(v => v.Validity)));
-                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta));
+                AddProperty(builder, MqttUserProperties.Timestamp, MqttTextCodec.FormatTimestamp(values.Max(v => v.Timestamp)));
+                AddProperty(builder, MqttUserProperties.Validity, MqttTextCodec.FormatValidity(values.Min(v => v.Validity)));
+                AddProperty(builder, MqttUserProperties.Type, JsonSerializer.Serialize(meta, JsonSetup.PayloadOptions));
             }
             return builder;
         }
@@ -172,7 +172,7 @@ internal sealed class MqttTreeHandlerOutgoing
         {
             var serializer = node.GetSerializer().ApplyDefault(_defaultSerializer);
             var type = value.Value?.GetType() ?? typeof(object);
-            var payload = serializer.Serialize(value.Value, type, JsonSetup.PreserveTypeOptions);
+            var payload = serializer.Serialize(value.Value, type, JsonSetup.PayloadOptions);
             var builder = CreateDefaultBuilder(node, serializer, payload);
             owner.AddEnvelope(builder, node, value);
             return builder;

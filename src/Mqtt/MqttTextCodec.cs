@@ -1,14 +1,15 @@
 using System;
 using System.Globalization;
+using System.Numerics;
 
 namespace ViciOne.Suite.DataPort;
 
 /// <summary>
-/// Converts the value of an envelope child between its runtime representation and the text of an
-/// MQTT user property. Every conversion is culture invariant, so a message means the same on the
-/// broker regardless of where it was produced.
+/// Converts a value between its runtime representation and the text an MQTT user property or a
+/// plain text payload carries. Every conversion is culture invariant, so a message means the same
+/// on the broker regardless of where it was produced.
 /// </summary>
-internal static class MqttEnvelopeCodec
+internal static class MqttTextCodec
 {
     private const string TrueText = "true";
     private const string FalseText = "false";
@@ -47,17 +48,42 @@ internal static class MqttEnvelopeCodec
             return text;
         if (type == typeof(bool))
             return bool.TryParse(text, out var flag) ? flag : null;
-        if (type == typeof(long))
-            return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : null;
-        if (type == typeof(double))
-            return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) ? number : null;
         // A sender that leaves the zone off means the UTC this port writes, not the local time of
         // whichever host happens to read the message.
         if (type == typeof(DateTime))
-            return DateTime.TryParseExact(text, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
+            return DateTime.TryParseExact(text, TimestampFormat, CultureInfo.InvariantCulture, DateTimeStyles.AllowLeadingWhite | DateTimeStyles.AllowTrailingWhite | DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var timestamp) ? timestamp : null;
 
-        return null;
+        return Type.GetTypeCode(type) switch
+        {
+            TypeCode.SByte => ParseInteger<sbyte>(text),
+            TypeCode.Byte => ParseInteger<byte>(text),
+            TypeCode.Int16 => ParseInteger<short>(text),
+            TypeCode.UInt16 => ParseInteger<ushort>(text),
+            TypeCode.Int32 => ParseInteger<int>(text),
+            TypeCode.UInt32 => ParseInteger<uint>(text),
+            TypeCode.Int64 => ParseInteger<long>(text),
+            TypeCode.UInt64 => ParseInteger<ulong>(text),
+            TypeCode.Single => ParseFloat<float>(text),
+            TypeCode.Double => ParseFloat<double>(text),
+            _ => null,
+        };
     }
+
+    private static object? ParseInteger<T>(string text)
+        where T : IBinaryInteger<T>
+        => T.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) ? number : null;
+
+    /// <summary>
+    /// Reads a float, but not one too large for its type. The framework reads such a number as
+    /// infinity, so a value the sender meant to be finite would arrive as one that is not.
+    /// <c>Infinity</c> written as a word is read, because it has no digits to overflow.
+    /// </summary>
+    private static object? ParseFloat<T>(string text)
+        where T : IFloatingPointIeee754<T>
+        => T.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number)
+            && !(T.IsInfinity(number) && text.AsSpan().ContainsAnyInRange('0', '9'))
+            ? number
+            : null;
 
     /// <summary>
     /// Formats an engine timestamp the way the fixed <c>Timestamp</c> user property has always been

@@ -20,7 +20,7 @@ internal static class MqttEnvelopeReader
             return EnvelopeReadResult.Missing;
         }
 
-        value = MqttEnvelopeCodec.Parse(property.GetText(), child.ValueType);
+        value = MqttTextCodec.Parse(property.GetText(), child.ValueType);
 
         return value is null ? EnvelopeReadResult.Malformed : EnvelopeReadResult.Read;
     }

@@ -11,7 +11,7 @@ public class ReceivedMqttMessage_Timestamp
 {
     /// <summary>
     /// The timestamp reaches the engine and is written back onto the next outgoing message through
-    /// <see cref="MqttEnvelopeCodec.FormatTimestamp"/>, which reads a timestamp of an unspecified
+    /// <see cref="MqttTextCodec.FormatTimestamp"/>, which reads a timestamp of an unspecified
     /// kind as local time. Anything but UTC here moves every timestamp the port forwards by the
     /// offset of the host it runs on.
     /// </summary>
@@ -32,7 +32,7 @@ public class ReceivedMqttMessage_Timestamp
     {
         ReceivedMqttMessage received = new(Message("2026-03-04T12:00:00.0000000Z"), TimeProvider.System);
 
-        MqttEnvelopeCodec.FormatTimestamp(received.Timestamp).Should().Be("2026-03-04T12:00:00.0000000Z");
+        MqttTextCodec.FormatTimestamp(received.Timestamp).Should().Be("2026-03-04T12:00:00.0000000Z");
     }
 
     [Fact]
