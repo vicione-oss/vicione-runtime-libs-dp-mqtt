@@ -17,6 +17,16 @@ internal static class SerializerExtensions
             _ => throw new NotSupportedException($"The serializer '{serializer}' is not supported."),
         };
 
+    /// <summary>
+    /// Reads a payload as <paramref name="type"/>. Both serializers fail the same way: a payload the
+    /// type cannot be read from throws, and the caller reports it as unreadable.
+    /// </summary>
+    /// <returns>
+    /// <see langword="null"/> for an empty payload or a JSON <c>null</c>, which are values and not
+    /// failures.
+    /// </returns>
+    /// <exception cref="JsonException">The JSON payload is not one value of <paramref name="type"/>.</exception>
+    /// <exception cref="FormatException">The plain text payload is not a <paramref name="type"/>.</exception>
     internal static object? Deserialize(this Serializer serializer, byte[]? data, Type type, JsonSerializerOptions options)
     {
         if (data is null || data.Length == 0)
@@ -30,6 +40,7 @@ internal static class SerializerExtensions
         };
     }
 
+    /// <inheritdoc cref="Deserialize(Serializer, byte[], Type, JsonSerializerOptions)"/>
     internal static object? Deserialize(this Serializer serializer, ReadOnlySequence<byte> data, Type type, JsonSerializerOptions options)
     {
         if (data.Length == 0)
