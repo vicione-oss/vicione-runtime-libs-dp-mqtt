@@ -1,0 +1,14 @@
+{
+  "extraKnownMarketplaces": {
+    "vicione-dps": {
+      "source": {
+        "source": "url",
+        "url": "https://gitlab.com/vicione-oss/vicione/runtime-libs/dps.git",
+        "ref": "main"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "dataports@vicione-dps": true
+  }
+}
